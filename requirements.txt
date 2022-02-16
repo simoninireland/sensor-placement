@@ -1,0 +1,15 @@
+netcdf4
+numpy
+networkx
+pygsp
+notebook >= 6.2.0
+ipywidgets >= 7.6.3
+jupyter
+matplotlib
+epyc
+-e file:../epydemic#egg=epydemic
+-e file:../epydemic-signals#egg=epydemic_signals
+folium
+pyproj
+geopandas
+geovoronoi

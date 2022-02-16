@@ -1,0 +1,16 @@
+wheel
+tox
+coverage
+pylint
+rope
+sphinx
+sphinx_rtd_theme
+sphinx-autodoc-typehints
+sphinxcontrib-bibtex
+doc8
+twine
+jedi
+jedi-language-server
+matplotlib
+seaborn
+mypy
