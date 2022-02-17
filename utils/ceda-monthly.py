@@ -4,7 +4,8 @@
 #
 # Copyright (C) 2022 Simon Dobson
 #
-# This file is part of sensor-placement, an experiment exploriung sensor error.
+# This file is part of sensor-placement, an experiment in sensor placement
+# and error.
 #
 # This is free software: you can redistribute it and/or modify
 # it under the terms of the GNU General Public License as published by
