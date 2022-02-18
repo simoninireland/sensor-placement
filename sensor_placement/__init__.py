@@ -16,4 +16,4 @@
 # You should have received a copy of the GNU General Public License
 # along with trhis software. If not, see <http://www.gnu.org/licenses/gpl.html>.
 
-from .nni import natural_nearest_neighbour
+from .nni import voronoi_from_samples, interpolation_grid, natural_nearest_neighbour
