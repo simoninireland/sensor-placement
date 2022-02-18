@@ -73,6 +73,8 @@ def interpolation_grid(xs, ys, df_points, df_voronoi):
     interpolated points, `x` and `y` for the indices of the observation
     along the two axes, and `cell` holding the index of the Voronoi cell
     within which the interpolation point lies.
+    The grid is clipped to the boundary shape, so not all points implied
+    by the axes will necessarily have values assigned to them.
 
     :param xs: list of x co-ordinates to interpolate at
     :param ys: list of y co-ordinates to interpolate at
@@ -82,6 +84,12 @@ def interpolation_grid(xs, ys, df_points, df_voronoi):
     df_interpoints = GeoDataFrame({'x': [i for l in [[j] * len(ys) for j in range(len(xs))] for i in l],
                                    'y': list(range(len(list(ys)))) * len(xs),
                                    'geometry': [Point(x, y) for (x, y) in product(xs, ys)]})
+
+    # clip the grid to the boundary of the Voronoi cells
+    boundary_shape = cascaded_union(df_voronoi.geometry)
+    df_interpoints = df_interpoints[df_interpoints.geometry.within(boundary_shape)]
+
+    # add the cell containing each point
     cells = []
     for _, cell in df_interpoints.iterrows():
         cells.append(df_voronoi[df_voronoi.geometry.intersects(cell.geometry)].geometry.index[0])
@@ -102,6 +110,8 @@ def natural_nearest_neighbour(df_points, boundary_shape, xs, ys):
     The returned `DataFrame` will have columns `geometry` for the
     interpolated points, `x` and `y` for the indices of the observation
     along the two axes, and `rainfall` for the interpolated rainfall.
+    The grid is clipped to the boundary shape, so not all points implied
+    by the axes will necessarily have values assigned to them.
 
     :param df_points: the samples
     :param boundary_shape: the boundary surrounding the samples
@@ -158,10 +168,8 @@ def natural_nearest_neighbour(df_points, boundary_shape, xs, ys):
             # store synthetic rainfall
             interpolated_rainfall.append(synthetic_rainfall)
 
-    # wrangle the interpolated data into the correct order, drop
-    # internal working information, and return
+    # wrangle the interpolated data into the correct order and return
     interpolated_points_in_order = [p for ps in [interpoints_grouped[g] for g in interpoints_grouped.keys()] for p in ps]
     df = df_interpoints.loc[interpolated_points_in_order]
     df['rainfall'] = interpolated_rainfall
-    df.drop(columns='cell', inplace=True)
     return df
