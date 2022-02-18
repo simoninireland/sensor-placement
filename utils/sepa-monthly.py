@@ -68,14 +68,11 @@ for id in latlons.keys():
     ns_station.append(north)
     uk_grids[id] = (east, north)
 
-# construct last day on each month
-# see https://stackoverflow.com/questions/42950/how-to-get-the-last-day-of-the-month
+# construct first day on each month (corresponds to CEH-GEAR monthlies)
 times = []
 for m in range(len(monthnames)):
     firstday = datetime(year=year, month=m + 1, day=1)       # first day of the month
-    nextmonth = firstday.replace(day=28) + timedelta(days=4)
-    lastday = nextmonth - timedelta(days=nextmonth.day)      # last day of month
-    day = (lastday - days_base).days                         # days since reference date
+    day = (firstday - days_base).days                        # days since reference date
     times.append(day)
 
 # construct arrays for the time series
@@ -88,10 +85,11 @@ rainfall = numpy.zeros((12, len(id_station)))
 for i in range(len(id_station)):
     # pull the data
     id = id_station[i]
-    print(f'{sepa_monthly_url}/{id}?all=true')
-    req = requests.get(f'{sepa_monthly_url}/{id}?json=true')
+    url = f'{sepa_monthly_url}/{id}?all=true'
+    req = requests.get(url)
     if req.status_code != 200:
-       raise Exception('Error downloading dataset: {e}'.format(e=req.status_code))
+       raise Exception('Error downloading dataset {url}: {e}'.format(url=url,
+                                                                     e=req.status_code))
     ts = req.json()
 
     # turn array of dicts into dict keyed by timestamp
