@@ -27,7 +27,7 @@ from shapely.geometry import shape, Point, Polygon
 from shapely.ops import cascaded_union
 
 
-def voronoi_from_samples(df_points, boundary_shape):
+def nnn_voronoi(df_points, boundary_shape):
     '''Construct a table ot Voronoi cells and their adjacencies based on
     a set of samples and a boundary.''
 
@@ -65,7 +65,7 @@ def voronoi_from_samples(df_points, boundary_shape):
     return df_voronoi
 
 
-def interpolation_grid(xs, ys, df_points, df_voronoi):
+def nnn_grid(df_points, df_voronoi, xs, ys):
     '''Construct the grid of interpolation points from a set of samples,
     a set of their voronoi cells, and the sample point axes.
 
