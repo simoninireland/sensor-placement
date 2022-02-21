@@ -16,6 +16,11 @@ TEXT =
 NOTEBOOKS =  \
 	sensor-placement.ipynb
 
+# Source code
+SOURCE = \
+	sensor_placement/__init__.py \
+	sensor_placement/nnni.py
+
 # Utilities
 UTILS = utils/
 SCRIPTS = \
@@ -46,7 +51,9 @@ SEPA_EXAMPLE_MONTHLY = sepa_monthly_2017.nc
 
 # CEDA rain gauges -- see https://data.ceda.ac.uk/badc/ukmo-midas-open/data/uk-daily-rain-obs/dataset-version-202107
 CEDA_URL = https://dap.ceda.ac.uk/badc/ukmo-midas-open/data/uk-daily-rain-obs/dataset-version-202107
-CEDA_LOGIN_URL = https://auth.ceda.ac.uk/account/signin/
+CEDA_CA = online_ca_client
+CEDA_CA_ROOTS = $(ROOT)/trustroots
+CEDA_CERTIFICATE = $(ROOT)/ceda.pem
 CEDA_STATIONS_URL = $(CEDA_URL)/midas-open_uk-daily-rain-obs_dv-202107_station-metadata.csv
 CEDA_STATIONS = ceda-stations.csv
 
@@ -133,33 +140,37 @@ help:
 # Download datasets
 datasets: env $(DATASETS_DIR)/$(CEH_EXAMPLE_MONTHLY) $(DATASETS_DIR)/$(UK_BOUNDARIES) $(DATASETS_DIR)/$(SEPA_EXAMPLE_MONTHLY)
 
+# CEH interpolated monthlies
 $(DATASETS_DIR)/$(CEH_EXAMPLE_MONTHLY):
 	$(ACTIVATE) && $(WGET) --post-data=username=$$CEH_USERNAME\&password=$$CEH_PASSWORD\&success=$(CEH_BASE_MONTHLIES)/$(CEH_EXAMPLE_MONTHLY) -O $(DATASETS_DIR)/$(CEH_EXAMPLE_MONTHLY) $(CEH_LOGIN_URL)
 
+# UK county and administrative boundaries
 $(DATASETS_DIR)/$(UK_BOUNDARIES):
 	$(ACTIVATE) && $(WGET) -O $(DATASETS_DIR)/$(UK_BOUNDARIES) $(UK_BOUNDARIES_URL)
 
+# SEPA rain gauge stations
 $(DATASETS_DIR)/$(SEPA_STATIONS):
 	$(ACTIVATE) && $(WGET) -O $(DATASETS_DIR)/$(SEPA_STATIONS) $(SEPA_STATIONS_URL)
 
+# SEPA monthly obvservations
 $(DATASETS_DIR)/$(SEPA_EXAMPLE_MONTHLY): $(DATASETS_DIR)/$(SEPA_STATIONS)
 	$(ACTIVATE) && $(PYTHON) $(UTILS)/sepa-monthly.py 2017 $(DATASETS_DIR)/$(SEPA_EXAMPLE_MONTHLY)
 
-# ----- Proper access not working -----
-online-ca-client:
+# CEDA credentials
+online_ca_client:
 	git clone https://github.com/cedadev/online_ca_client
 	cd online_ca_client/contrail/security/onlineca/client/sh/ && ./onlineca-get-trustroots-wget.sh -U https://slcs.ceda.ac.uk/onlineca/trustroots/ -c $(ROOT)/trustroots -b
 
-ceda.pem: online-ca-client
-	cd online_ca_client/contrail/security/onlineca/client/sh/ && echo $CEDA_PASSWORD | ./onlineca-get-cert-wget.sh -U https://slcs.ceda.ac.uk/onlineca/certificate/ -c $(ROOT)/trustroots -l $CEDA_USERNAME -S -o $(ROOT)/ceda.pem
+ceda.pem: online_ca_client
+	cd online_ca_client/contrail/security/onlineca/client/sh/ && echo $$CEDA_PASSWORD | ./onlineca-get-cert-wget.sh -U https://slcs.ceda.ac.uk/onlineca/certificate/ -c $(CEDA_CA_ROOTS) -l $$CEDA_USERNAME -S -o $(CEDA_CERTIFICATE)
 
+# CEDA stations
 $(DATASETS_DIR)/$(CEDA_STATIONS):
-	# not working
-	$(WGET) --post-data=id_username=$$CEDA_USERNAME\&id_password=$$CEDA_PASSWORD -O $(DATASETS_DIR)/$(CEDA_STATIONS) $(CEDA_LOGIN_URL)?r=$(CEDA_STATIONS_URL)
+	$(WGET) --certificate=$(CEDA_CERTIFICATE) -O $(DATASETS_DIR)/$(CEDA_STATIONS) $(CEDA_STATIONS_URL)
 
 $(DATASETS_DIR)/ceda:
 	$(MKDIR) $(DATASETS_DIR)/ceda
-	$(CHDIR) $(DATASETS_DIR)/ceda && wget --http-user=$$CEDA_USERNAME --http-password=$$CEDA_PASSWORD -e robots=off --mirror --no-parent -r https://dap.ceda.ac.uk/badc/ukmo-midas-open/data/uk-daily-rain-obs/dataset-version-202107/
+	$(CHDIR) $(DATASETS_DIR)/ceda && wget --certificate=$(CEDA_CERTIFICATE) -e robots=off --mirror --no-parent -r https://dap.ceda.ac.uk/badc/ukmo-midas-open/data/uk-daily-rain-obs/dataset-version-202107/
 
 # Run the notebook server
 live: env
@@ -180,7 +191,7 @@ clean:
 # Clean up everything, including the venv and the datasets (which are *very* expensive
 # to re-download)
 reallyclean: clean
-	$(RM) $(VENV) $(DATASETS_DIR) online_ca_client
+	$(RM) $(VENV) $(DATASETS_DIR) $(CEDA_CA) $(CEDA_CA_ROOTS) $(CEDA_CERTIFICATE)
 
 
 # ----- Usage -----

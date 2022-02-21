@@ -43,7 +43,7 @@ else:
 
 # data
 cedastations_filename = 'datasets/ceda-stations.csv'
-ceda_daily_dir = 'datasets/ceda/dap.ceda.ac.uk/badc/ukmo-midas-open/data/uk-daily-rain-obs/dataset-version-202107/'
+ceda_daily_url = 'https://dap.ceda.ac.uk/badc/ukmo-midas-open/data/uk-daily-rain-obs/dataset-version-202107'
 
 # the reference date from which CEH-GEAR days are counted
 days_base = datetime(year=1800, month=1, day=1)
@@ -56,18 +56,23 @@ with open(cedastations_filename, 'r') as fh:
     reading_stations = False
     skip_next_line = False
     for row in r:
+        print(r)
         if row[0] == 'data':
+            print('data')
             # seen the line that starts the stations
             reading_stations = True
             skip_next_line = True
         elif row[0] == 'end data':
+            print('end data')
             # end of data
             break
         elif skip_next_line:
+            print('skip')
             skip_next_line = False
         elif reading_stations:
             id = int(row[0])
             name = row[1]
+            print(id, name)
 
             # make sure the station has data in the year we're looking for
             if not (year >= int(row[7]) and year <= int(row[8])):
@@ -75,7 +80,7 @@ with open(cedastations_filename, 'r') as fh:
                 continue
 
             # map station id and filename
-            fn = '{base}/{county}/{id}-{name}/qc-version-1/midas-open_uk-daily-rain-obs_dv-202107_{county}_{id}_{name}_qcv-1_{year}.csv'.format(base=ceda_daily_dir,
+            url = '{base}/{county}/{id}-{name}/qc-version-1/midas-open_uk-daily-rain-obs_dv-202107_{county}_{id}_{name}_qcv-1_{year}.csv'.format(base=ceda_daily_url,
                                                                                                                                                 id='{id:05d}'.format(id=id),
                                                                                                                                                 county=row[3],
                                                                                                                                                 name=row[2],
@@ -84,6 +89,9 @@ with open(cedastations_filename, 'r') as fh:
 
             # map station id to location
             latlons[id] = (row[4], row[5])
+
+            print(url)
+            exit(0)
 
 # map the co-ordinates of the stations to a square on the national grid
 uk_grid_crs = CRS.from_string('EPSG:27700')            # UK national grid
@@ -102,7 +110,7 @@ for id in latlons.keys():
 
 # construct first day on each month (corresponds to CEH-GEAR monthlies)
 times = []
-for m in range(len(monthnames)):
+for m in range(12):
     firstday = datetime(year=year, month=m + 1, day=1)       # first day of the month
     day = (firstday - days_base).days                        # days since reference date
     times.append(day)
