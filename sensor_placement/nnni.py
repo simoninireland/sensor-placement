@@ -28,32 +28,45 @@ from shapely.ops import cascaded_union
 
 
 def nnn_voronoi(df_points, boundary_shape):
-    '''Construct a table ot Voronoi cells and their adjacencies based on
-    a set of samples and a boundary.''
+    '''Construct a table of natural nearest neighbour Voronoi cells
+    and their adjacencies based on a set of samplepo points and a boundary.
 
     The sample points should be supplied in a `GeoDataFrame` having
-    columns `geometry` containing the sample points and `rainfall`
-    holding the observation at that point. All the samples should
-    lie within the boundary_shape.
+    columns `geometry` containing the sample points locations. All the
+    samples should lie within the boundary_shape.
 
     The returned `DataFrame` will contain the `geometry` of each cell,
-    it's `centre`1 (the sample point it surrounds), a `neighbourhood`
-    holding the indices of the cells that intersect this cell (including
-    the index of the cell itself), and a `boundary` holding the outer
-    boundary of this set.
+    it's `centre` (the sample point it surrounds), `sample` the index
+    of the sample point in the sample vector, a `neighbourhood` holding
+    the indices of the cells that intersect this cell (including the
+    index of the cell itself), and a `boundary` holding the outer
+    boundary of this set. This is all the topological information
+    contained in the Voronoi diagram, plus a link to the way
+    sample points are represented as a vector.
 
     :param df_points: the samples
     :param boundary_shape: the boundary surrounding the samples
-    :returns: a dataframe'''
+    :returns: a dataframe
+
+    '''
+
+    # check that all the sample points lie within the boundary
+    if not df_points.geometry.within(boundary_shape).all():
+        raise ValueError('At least one point lies on or outside the boundary')
+
+    # create the Voronoi cells
     coords = points_to_coords(df_points.geometry)
     voronoi_cells, voronoi_centres = voronoi_regions_from_coords(coords, boundary_shape)
-    df_voronoi = GeoDataFrame({'centre': [df_points.iloc[voronoi_centres[i][0]].geometry for i in voronoi_cells.keys()],
-                               'geometry': voronoi_cells.values()})
+    cells = list(voronoi_cells.keys())
+    df_voronoi = GeoDataFrame({'centre': [df_points.iloc[voronoi_centres[i][0]].geometry for i in cells],
+                               'geometry': voronoi_cells.values(),
+                               'sample': [voronoi_centres[i][0] for i in cells]})
 
     # add the neighbourhoods of each cell, their index and overall boundary
     neighbourhoods = []
     boundaries = []
     for i, cell in df_voronoi.iterrows():
+        # indices of intersecting neighbour cells
         neighbours = list(df_voronoi[df_voronoi.geometry.touches(cell.geometry)].index) + [i]
         neighbourhoods.append(neighbours)
 
@@ -65,74 +78,69 @@ def nnn_voronoi(df_points, boundary_shape):
     return df_voronoi
 
 
-def nnn_grid(df_points, df_voronoi, xs, ys):
+def nnn_geometry(df_points, df_voronoi, xs, ys):
     '''Construct the grid of interpolation points from a set of samples,
-    a set of their voronoi cells, and the sample point axes.
+    a set of their Voronoi cells, and the sample point axes.
 
     The returned `DataFrame` will have columns `geometry` for the
-    interpolated points, `x` and `y` for the indices of the observation
-    along the two axes, and `cell` holding the index of the Voronoi cell
-    within which the interpolation point lies.
-    The grid is clipped to the boundary shape, so not all points implied
-    by the axes will necessarily have values assigned to them.
+    interpolated points, `x` and `y` for the indices of the
+    observation along the two axes, and `cell` holding the index of
+    the Voronoi cell within which the interpolation point lies.
+    An index of -1 is used to represent cells that lie outside the area
+    covered by the Voronoi diagram.
 
-    :param xs: list of x co-ordinates to interpolate at
-    :param ys: list of y co-ordinates to interpolate at
     :param df_points: the samples
     :param df_voronoi: the Voronoi cells for these samples
-    :returns: a dataframe'''
+    :param xs: list of x co-ordinates to interpolate at
+    :param ys: list of y co-ordinates to interpolate at
+    :returns: a dataframe
+
+    '''
+
+    # build the grid
     df_interpoints = GeoDataFrame({'x': [i for l in [[j] * len(ys) for j in range(len(xs))] for i in l],
                                    'y': list(range(len(list(ys)))) * len(xs),
                                    'geometry': [Point(x, y) for (x, y) in product(xs, ys)]})
 
-    # clip the grid to the boundary of the Voronoi cells
-    boundary_shape = cascaded_union(df_voronoi.geometry)
-    df_interpoints = df_interpoints[df_interpoints.geometry.within(boundary_shape)]
-
     # add the cell containing each point
     cells = []
     for _, cell in df_interpoints.iterrows():
-        cells.append(df_voronoi[df_voronoi.geometry.intersects(cell.geometry)].geometry.index[0])
+        cs = df_voronoi[df_voronoi.geometry.intersects(cell.geometry)]
+        if len(cs) == 1:
+            cells.append(cs.index[0])
+        else:
+            cells.append(-1)
     df_interpoints['cell'] = cells
 
     return df_interpoints
 
 
-def natural_nearest_neighbour(df_points, boundary_shape, xs, ys):
-    '''Interpolate samples given by the df_points `DataFrame`
-    at positions given by co-ordinates from xs and ys.
+def nnn_tensor(df_points, df_voronoi, df_grid):
+    '''Construct the natural nearest neighbour interpolation tensor from a
+    set of samples taken within a boundary and sampled at the given
+    grid of interpolation points.
 
-    The sample points should be supplied in a `GeoDataFrame` having
-    columns `geometry` containing the sample points and `rainfall`
-    holding the observation at that point. All the samples should
-    lie within the boundary_shape.
+    The tensor is a three-dimensional sparse `numpy.array` with axes
+    corresponding to xs, ys, and points, with entries containing the
+    weight given to each sample in interpolating each point.
 
-    The returned `DataFrame` will have columns `geometry` for the
-    interpolated points, `x` and `y` for the indices of the observation
-    along the two axes, and `rainfall` for the interpolated rainfall.
-    The grid is clipped to the boundary shape, so not all points implied
-    by the axes will necessarily have values assigned to them.
+    :param df_points: the sample points
+    :param df_voronoi: the Voronoi diagram of the samples
+    :param df_grid: the grid to interpolate onto
+    :returns: a tensor'''
 
-    :param df_points: the samples
-    :param boundary_shape: the boundary surrounding the samples
-    :param xs: list of x co-ordinates to interpolate at
-    :param ys: list of y co-ordinates to interpolate at
-    :returns: a dataframe'''
+    # construct the tensor
+    tensor = numpy.zeros((max(df_grid.x) + 1, max(df_grid.y) + 1, len(df_points)))
 
-    # check that all the sample points lie within the boundary
-    if not df_points.geometry.within(boundary_shape).all():
-        raise ValueError('At least one point lies on or outside the boundary')
+    # group the grid points by the real cell they lie within
+    grid_grouped = df_grid.groupby('cell').groups
 
-    # construct the real Voronoi cells around the sample points
-    df_voronoi = voronoi_from_samples(df_points, boundary_shape)
+    # ignore any points outside of the Voronoi diagram
+    if -1 in grid_grouped.keys():
+        del grid_grouped[-1]
 
-    # construct the interpolation grid
-    df_interpoints = interpolation_grid(xs, ys, df_points, df_voronoi)
-
-    # perform the interpolation
-    interpoints_grouped = df_interpoints.groupby('cell').groups
-    interpolated_rainfall = []
-    for real_cell in interpoints_grouped.keys():
+    # construct the weights
+    for real_cell in grid_grouped.keys():
         # extract the neighbourhood of Voronoi cells,
         # the only ones that the cell around this sample point
         # can intersect and so the only computation we need to do
@@ -142,34 +150,108 @@ def natural_nearest_neighbour(df_points, boundary_shape, xs, ys):
 
         # construct an array that will hold the co-ordinates of all the real points
         # and the synthetic point
-        synthetic_coords = numpy.array(numpy.append(real_coords, [[0, 0]], axis=0))
+        synthetic_coords = numpy.append(real_coords, [[0, 0]], axis=0)
 
-        for pt in interpoints_grouped[real_cell]:
-            # re-compute the Voronoi cells given the syntheic point
-            p = df_interpoints.loc[pt].geometry
-            synthetic_coords[-1] = points_to_coords([p])[0]
+        for pt in grid_grouped[real_cell]:
+            # re-compute the Voronoi cells given the synthetic point
+            p = df_grid.loc[pt]
+            synthetic_coords[-1] = points_to_coords([p.geometry])[0]
             synthetic_voronoi_cells, synthetic_voronoi_centres = voronoi_regions_from_coords(synthetic_coords, real_boundary_shape)
 
             # get the synthetic cell
             i = [i for i in synthetic_voronoi_centres.keys() if len(synthetic_coords) - 1 in synthetic_voronoi_centres[i]][0]
             synthetic_cell = synthetic_voronoi_cells[i]
 
-            # compute the weighted value
+            # compute the weights
             synthetic_cell_area = synthetic_cell.area
-            synthetic_rainfall = 0
-            total_area = 0
             for _, r in df_real_neighbourhood.iterrows():
                 area = r.geometry.intersection(synthetic_cell).area
-                total_area += area
                 if area > 0.0:
-                    obs = df_points[df_points.geometry == r.centre].iloc[0].rainfall
-                    synthetic_rainfall += (area / synthetic_cell_area) * obs
+                    tensor[int(p['x']), int(p['y']), int(r['sample'])] = area / synthetic_cell_area
 
-            # store synthetic rainfall
-            interpolated_rainfall.append(synthetic_rainfall)
+    return tensor
 
-    # wrangle the interpolated data into the correct order and return
-    interpolated_points_in_order = [p for ps in [interpoints_grouped[g] for g in interpoints_grouped.keys()] for p in ps]
-    df = df_interpoints.loc[interpolated_points_in_order]
-    df['rainfall'] = interpolated_rainfall
-    return df
+
+def apply_tensor(tensor, samples):
+    '''Apply an interpolation tensor to a sample vector, giving
+    a grid of interpolated points.
+
+    :param tensor: the tensor
+    :param samples: the sample vector
+    :param boundary_shape: the overall shape of the region
+    :returns: a grid of interpolated points
+
+    '''
+
+    # check dimensions
+    if len(samples) != tensor.shape[2]:
+        raise ValueError('Tensor needs {n} samples, got {m}'.format(n=tensor.shape[2],
+                                                                    m=len(samples)))
+
+    # create the grid
+    grid = numpy.zeros((tensor.shape[0], tensor.shape[1]))
+
+    # apply the tensor
+    sample = 0
+    for x in range(grid.shape[0]):
+        for y in range(grid.shape[1]):
+            grid[x, y] = numpy.dot(tensor[x, y, :], samples)
+
+    return grid
+
+
+def nnn_masked_grid(grid, boundary_shape, xs, ys):
+    '''Mask the grid to the boundary shape.
+
+    :param grid: the grid
+    :param boundary_shape: the boundary
+    :param xs: the x-axis co-ordinates
+    :param ys: the y-axis co-ordinates
+    :returns: a grid masked to the boundary shape
+    '''
+
+    # generate the mask
+    mask = numpy.empty(grid.shape)
+    for i in range(len(xs)):
+        for j in range(len(ys)):
+            x, y = xs[i], ys[j]
+            mask[i, j] = not boundary_shape.contains(Point(x, y))
+
+    # return the masked grid
+    return numpy.ma.masked_where(mask, grid, copy=False)
+
+
+def natural_nearest_neighbour(df_points, boundary_shape, xs, ys):
+    '''Interpolate samples given by the df_points `DataFrame`
+    at positions given by co-ordinates from xs and ys.
+
+    The returned array will have columns `geometry` for the
+    interpolated points, `x` and `y` for the indices of the observation
+    along the two axes, and `rainfall` for the interpolated rainfall.
+    The grid is masked to the boundary shape, so not all points implied
+    by the axes will necessarily have values assigned to them.
+
+    :param df_points: the samples
+    :param boundary_shape: the boundary surrounding the samples
+    :param xs: list of x co-ordinates to interpolate at
+    :param ys: list of y co-ordinates to interpolate at
+    :returns: a grid of interpolated grid points'''
+
+    # construct the tensor the real Voronoi cells around the sample points
+    df_voronoi = nnn_voronoi(df_points, boundary_shape)
+
+    # construct the interpolation grid
+    df_grid = nnn_geometry(df_points, df_voronoi, xs, ys)
+
+    # construct the tensor
+    tensor = nnn_tensor(df_points, df_voronoi, df_grid)
+
+    # extract the samples
+    samples = numpy.array(df_points['rainfall_amount'])
+
+    # apply the tensor to the samples
+    grid = apply_tensor(tensor, samples)
+
+    # mask the parts of the grid not lying within the boundary
+    masked = nnn_masked_grid(grid, boundary_shape, xs, ys)
+    return masked
