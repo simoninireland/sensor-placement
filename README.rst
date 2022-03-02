@@ -61,7 +61,9 @@ You can then access the notebooks by running:
 
    make live
 
-which will open a notebook in a web browser.
+which will open a notebook in a web browser. You'll probably want to
+start by looking at ./datacheck.ipynb to make sure the data has come
+down properly.
 
 
 Author and license
