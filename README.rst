@@ -37,9 +37,12 @@ accounts. These are:
 
 Once you have created usernames and passwords for these sites, copy
 the file ./credentials.example to ./credentials, and edit it to insert
-your credentials in the appropriate places. Don't commit ./credentials
-to version control! -- it's a breach of the license conditions to
-share your credentials with others.
+your credentials in the appropriate places. Note that this is a shell
+script, not Python code. Also be careful to put the usernames and
+passwords within single quotes to avoid problems with special characters.
+
+Don't commit ./credentials to version control! -- it's a breach of the
+licensing terms to share your credentials with others.
 
 You can now download the datasets by running:
 
@@ -49,7 +52,7 @@ You can now download the datasets by running:
 
 This will take a *long* time: how long depends on the speed of your
 broadband connection, but the download is over 1.2GB in size, so it's
-best to get at least a coffee and probably dinner while you wait. You
+best to get at least a coffee, and probably dinner, while you wait. You
 need only perform this step once, of course.
 
 You can then access the notebooks by running:
