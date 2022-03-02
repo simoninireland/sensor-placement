@@ -32,8 +32,8 @@ UK academics.
 You first need to visit the two data archives and register for
 accounts. These are:
 
-- The [Centre for Ecology and Hydrology](https://catalogue.ceh.ac.uk)
-- The [Centre for Environmental Data Analysis](https://data.ceda.ac.uk)
+- The `Centre for Ecology and Hydrology <https://catalogue.ceh.ac.uk>`_
+- The `Centre for Environmental Data Analysis <https://data.ceda.ac.uk`_
 
 Once you have created usernames and passwords for these sites, copy
 the file ./credentials.example to ./credentials, and edit it to insert
