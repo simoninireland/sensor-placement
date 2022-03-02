@@ -41,15 +41,18 @@ CEH_BASE = /datastore/eidchub/dbf13dd5-90cd-457a-a986-f2f9dd97e93c
 CEH_BASE_MONTHLIES = $(CEH_BASE)/GB/monthly
 CEH_EXAMPLE_MONTHLY = CEH_GEAR_monthly_GB_2017.nc
 
-# SEPA rain gauges -- see https://www2.sepa.org.uk/rainfall/DataDownload
+# SEPA rain gauges
+# see https://www2.sepa.org.uk/rainfall/DataDownload
 SEPA_URL = https://apps.sepa.org.uk/rainfall
 SEPA_STATIONS_URL = $(SEPA_URL)/api/Stations?json=true
 SEPA_STATIONS = sepa-stations.json
 
-# SEPA monthly -- see utils/sepa-monthly.py for construction
+# SEPA monthly
+# see utils/sepa-monthly.py for construction
 SEPA_EXAMPLE_MONTHLY = sepa_monthly_2017.nc
 
-# CEDA rain gauges -- see https://data.ceda.ac.uk/badc/ukmo-midas-open/data/uk-daily-rain-obs/dataset-version-202107
+# CEDA rain gauges
+# see https://data.ceda.ac.uk/badc/ukmo-midas-open/data/uk-daily-rain-obs/dataset-version-202107
 CEDA_URL = https://dap.ceda.ac.uk/badc/ukmo-midas-open/data/uk-daily-rain-obs/dataset-version-202107
 CEDA_CA = online_ca_client
 CEDA_CA_ROOTS = $(ROOT)/trustroots
@@ -57,10 +60,12 @@ CEDA_CERTIFICATE = $(ROOT)/ceda.pem
 CEDA_STATIONS_URL = $(CEDA_URL)/midas-open_uk-daily-rain-obs_dv-202107_station-metadata.csv
 CEDA_STATIONS = ceda-stations.csv
 
-# SEPA monthly -- see utils/sepa-monthly.py for construction
-SEPA_EXAMPLE_MONTHLY = sepa_monthly_2017.nc
+# CEDA monthly
+# see utils/ceda-monthly.py for construction
+CEDA_EXAMPLE_MONTHLY = ceda_monthly_2017.nc
 
-# County boundaries -- see https://ckan.publishing.service.gov.uk/dataset/counties-and-unitary-authorities-december-2018-boundaries-gb-buc
+# County boundaries
+# see https://ckan.publishing.service.gov.uk/dataset/counties-and-unitary-authorities-december-2018-boundaries-gb-buc
 UK_BOUNDARIES_URL = http://geoportal1-ons.opendata.arcgis.com/datasets/28af36afcd764edd8cd62d40bef9181c_0.geojson?outSR={%22latestWkid%22:27700}
 UK_BOUNDARIES = UK_BUC.geojson
 
@@ -138,7 +143,7 @@ help:
 	@make usage
 
 # Download datasets
-datasets: env $(DATASETS_DIR)/$(CEH_EXAMPLE_MONTHLY) $(DATASETS_DIR)/$(UK_BOUNDARIES) $(DATASETS_DIR)/$(SEPA_EXAMPLE_MONTHLY)
+datasets: env $(DATASETS_DIR)/$(CEH_EXAMPLE_MONTHLY) $(DATASETS_DIR)/$(UK_BOUNDARIES) $(DATASETS_DIR)/$(SEPA_EXAMPLE_MONTHLY) $(DATASETS_DIR)/$(CEDA_EXAMPLE_MONTHLY)
 
 # CEH interpolated monthlies
 $(DATASETS_DIR)/$(CEH_EXAMPLE_MONTHLY):
@@ -152,25 +157,31 @@ $(DATASETS_DIR)/$(UK_BOUNDARIES):
 $(DATASETS_DIR)/$(SEPA_STATIONS):
 	$(ACTIVATE) && $(WGET) -O $(DATASETS_DIR)/$(SEPA_STATIONS) $(SEPA_STATIONS_URL)
 
-# SEPA monthly obvservations
+# SEPA monthly observations
 $(DATASETS_DIR)/$(SEPA_EXAMPLE_MONTHLY): $(DATASETS_DIR)/$(SEPA_STATIONS)
 	$(ACTIVATE) && $(PYTHON) $(UTILS)/sepa-monthly.py 2017 $(DATASETS_DIR)/$(SEPA_EXAMPLE_MONTHLY)
 
 # CEDA credentials
+# see https://help.ceda.ac.uk/article/4442-ceda-opendap-scripted-interactions
 online_ca_client:
 	git clone https://github.com/cedadev/online_ca_client
 	cd online_ca_client/contrail/security/onlineca/client/sh/ && ./onlineca-get-trustroots-wget.sh -U https://slcs.ceda.ac.uk/onlineca/trustroots/ -c $(ROOT)/trustroots -b
 
-ceda.pem: online_ca_client
-	cd online_ca_client/contrail/security/onlineca/client/sh/ && echo $$CEDA_PASSWORD | ./onlineca-get-cert-wget.sh -U https://slcs.ceda.ac.uk/onlineca/certificate/ -c $(CEDA_CA_ROOTS) -l $$CEDA_USERNAME -S -o $(CEDA_CERTIFICATE)
+$(CEDA_CERTIFICATE): online_ca_client
+	$(ACTIVATE) && cd online_ca_client/contrail/security/onlineca/client/sh/ && echo $$CEDA_PASSWORD | ./onlineca-get-cert-wget.sh -U https://slcs.ceda.ac.uk/onlineca/certificate/ -c $(CEDA_CA_ROOTS) -l $$CEDA_USERNAME -S -o $(CEDA_CERTIFICATE)
 
 # CEDA stations
-$(DATASETS_DIR)/$(CEDA_STATIONS):
+$(DATASETS_DIR)/$(CEDA_STATIONS): $(CEDA_CERTIFICATE)
 	$(WGET) --certificate=$(CEDA_CERTIFICATE) -O $(DATASETS_DIR)/$(CEDA_STATIONS) $(CEDA_STATIONS_URL)
 
-$(DATASETS_DIR)/ceda:
+# CEDA data archive
+$(DATASETS_DIR)/ceda: $(CEDA_CERTIFICATE)
 	$(MKDIR) $(DATASETS_DIR)/ceda
-	$(CHDIR) $(DATASETS_DIR)/ceda && wget --certificate=$(CEDA_CERTIFICATE) -e robots=off --mirror --no-parent -r https://dap.ceda.ac.uk/badc/ukmo-midas-open/data/uk-daily-rain-obs/dataset-version-202107/
+	$(CHDIR) $(DATASETS_DIR)/ceda && wget --certificate=$(CEDA_CERTIFICATE) -e robots=off --mirror --no-parent -r $(CEDA_URL)
+
+# CEDA monthly observations
+$(DATASETS_DIR)/$(CEDA_EXAMPLE_MONTHLY): $(DATASETS_DIR)/ceda $(DATASETS_DIR)/$(CEDA_STATIONS)
+	$(ACTIVATE) && $(PYTHON) $(UTILS)/ceda-monthly.py 2017 $(DATASETS_DIR)/$(CEDA_EXAMPLE_MONTHLY)
 
 # Run the notebook server
 live: env

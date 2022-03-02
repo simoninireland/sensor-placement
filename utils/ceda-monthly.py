@@ -1,6 +1,6 @@
 # Import a year of data from all the UK Met Office rain gauges, exporting as
 # a NetCDF4 file in a format similar to that of CEH-GEAR, but intended
-# to allow extraction of timeseries for individuaL stations.
+# to allow extraction of timeseries across the UK rather than per-station.
 #
 # Copyright (C) 2022 Simon Dobson
 #
@@ -21,13 +21,14 @@
 # along with this software. If not, see <http://www.gnu.org/licenses/gpl.html>.
 
 from sys import argv
+from os.path import exists
 from datetime import datetime, timedelta
 import dateparser
 import csv
 import json
 import requests
 import numpy
-from netCDF4 import Dataset
+from netCDF4 import Dataset, stringtochar
 from pyproj import CRS, Transformer
 
 
@@ -43,36 +44,33 @@ else:
 
 # data
 cedastations_filename = 'datasets/ceda-stations.csv'
-ceda_daily_url = 'https://dap.ceda.ac.uk/badc/ukmo-midas-open/data/uk-daily-rain-obs/dataset-version-202107'
+ceda_daily_dir = 'datasets/ceda/dap.ceda.ac.uk/badc/ukmo-midas-open/data/uk-daily-rain-obs/dataset-version-202107'
+ceda_data_filename_pattern = '{base}/{county}/{id}_{name}/qc-version-1/midas-open_uk-daily-rain-obs_dv-202107_{county}_{id}_{name}_qcv-1_{year}.csv'
 
 # the reference date from which CEH-GEAR days are counted
 days_base = datetime(year=1800, month=1, day=1)
 
 # extract all the station names and locations from the CSV file
 cedastations = dict()
+cedadata = dict()
 latlons = dict()
 with open(cedastations_filename, 'r') as fh:
     r = csv.reader(fh, delimiter=',')
     reading_stations = False
     skip_next_line = False
     for row in r:
-        print(r)
         if row[0] == 'data':
-            print('data')
             # seen the line that starts the stations
             reading_stations = True
             skip_next_line = True
         elif row[0] == 'end data':
-            print('end data')
             # end of data
             break
         elif skip_next_line:
-            print('skip')
             skip_next_line = False
         elif reading_stations:
             id = int(row[0])
-            name = row[1]
-            print(id, name)
+            name = row[2]
 
             # make sure the station has data in the year we're looking for
             if not (year >= int(row[7]) and year <= int(row[8])):
@@ -80,18 +78,25 @@ with open(cedastations_filename, 'r') as fh:
                 continue
 
             # map station id and filename
-            url = '{base}/{county}/{id}-{name}/qc-version-1/midas-open_uk-daily-rain-obs_dv-202107_{county}_{id}_{name}_qcv-1_{year}.csv'.format(base=ceda_daily_url,
-                                                                                                                                                id='{id:05d}'.format(id=id),
-                                                                                                                                                county=row[3],
-                                                                                                                                                name=row[2],
-                                                                                                                                                year=year)
-            cedastations[id] = fn
+            dfn = ceda_data_filename_pattern.format(base=ceda_daily_dir,
+                                                    id='{id:05d}'.format(id=id),
+                                                    county=row[3],
+                                                    name=row[2],
+                                                    year=year)
+
+            # make sure we've got the data file
+            if not exists(dfn):
+                print(f'Can\'t access file for {year} at {name} {dfn}')
+                continue
+            else:
+                print(f'Adding {name}')
+
+            # remember file
+            cedastations[id] = name
+            cedadata[id] = dfn
 
             # map station id to location
             latlons[id] = (row[4], row[5])
-
-            print(url)
-            exit(0)
 
 # map the co-ordinates of the stations to a square on the national grid
 uk_grid_crs = CRS.from_string('EPSG:27700')            # UK national grid
@@ -125,9 +130,12 @@ rainfall = numpy.zeros((12, len(id_station)))
 for i in range(len(id_station)):
     # pull the data
     id = id_station[i]
+    name = cedastations[id]
+    fn = cedadata[id]
+    print(f'Loading {name}')
 
     # read the data
-    with open(cedastations[id], 'r') as fh:
+    with open(fn, 'r') as fh:
         r = csv.reader(fh, delimiter=',')
 
         reading_measurements = False
@@ -172,6 +180,16 @@ x_var[:] = es_station
 y_var[:] = ns_station
 time_var[:] = times
 rainfall_var[:, :] = rainfall
+
+# store the station names as fixed-width strings
+# (see https://unidata.github.io/netcdf4-python/#dealing-with-strings)
+maxlen = max(map(len, cedastations.values()))
+nchars_dim = root.createDimension('nchars', maxlen)
+names_var = root.createVariable('name', 'S1', (station_dim.name, nchars_dim.name))
+names_var._Encoding = 'ascii'
+names_var.units = 'Station name (string)'
+names = numpy.array(list(map(lambda s: f'{s:<{maxlen}}', cedastations.values())), dtype=f'<S{maxlen}')
+names_var[:] = names
 
 # close the file
 root.close()

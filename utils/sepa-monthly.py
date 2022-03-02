@@ -51,7 +51,9 @@ days_base = datetime(year=1800, month=1, day=1)
 # map all the station IDs to their locations
 with open(sepastations_filename, 'r') as fh:
     sepastations = json.load(fh)
-latlons = {int(s['station_no']): (s['station_latitude'], s['station_longitude']) for s in sepastations}
+latlons = {int(s['station_no']): (s['station_name'],
+                                  s['station_latitude'],
+                                  s['station_longitude']) for s in sepastations}
 
 # map the co-ordinates of the stations to a square on the national grid
 uk_grid_crs = CRS.from_string('EPSG:27700')            # UK national grid
@@ -61,7 +63,7 @@ uk_grids = {}
 es_station = []
 ns_station = []
 for id in latlons.keys():
-    east, north = proj.transform(*latlons[id])
+    east, north = proj.transform(latlons[id][1], latlons[id][2])
     east = 1000 * int(east / 1000)                     # round to the nearest kilometre
     north = 1000 * int(north / 1000)
     es_station.append(east)
@@ -85,6 +87,8 @@ rainfall = numpy.zeros((12, len(id_station)))
 for i in range(len(id_station)):
     # pull the data
     id = id_station[i]
+    name = latlons[id][0]
+    print(f'Adding {name}')
     url = f'{sepa_monthly_url}/{id}?all=true'
     req = requests.get(url)
     if req.status_code != 200:
@@ -132,6 +136,17 @@ x_var[:] = es_station
 y_var[:] = ns_station
 time_var[:] = times
 rainfall_var[:, :] = rainfall
+
+# store the station names as fixed-width strings
+# (see https://unidata.github.io/netcdf4-python/#dealing-with-strings)
+names = list(map(lambda ll: ll[0], latlons.values()))
+maxlen = max(map(len, names))
+nchars_dim = root.createDimension('nchars', maxlen)
+names_var = root.createVariable('name', 'S1', (station_dim.name, nchars_dim.name))
+names_var._Encoding = 'ascii'
+names_var.units = 'Station name (string)'
+names = numpy.array(list(map(lambda s: f'{s:<{maxlen}}', names)), dtype=f'<S{maxlen}')
+names_var[:] = names
 
 # close the file
 root.close()
