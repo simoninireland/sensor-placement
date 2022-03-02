@@ -57,7 +57,7 @@ latlons = {int(s['station_no']): (s['station_name'],
 
 # map the co-ordinates of the stations to a square on the national grid
 uk_grid_crs = CRS.from_string('EPSG:27700')            # UK national grid
-latlon_crs = CRS.from_string('WGS 84')                 # global lat/lon
+latlon_crs = CRS.from_string('EPSG:4326')              # global lat/lon
 proj = Transformer.from_crs(latlon_crs, uk_grid_crs)
 uk_grids = {}
 es_station = []
@@ -79,8 +79,6 @@ for m in range(len(monthnames)):
 
 # construct arrays for the time series
 id_station = list(latlons.keys())
-es_station.sort()
-ns_station.sort()
 rainfall = numpy.zeros((12, len(id_station)))
 
 # load all the time series
