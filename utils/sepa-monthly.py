@@ -31,7 +31,7 @@ from pyproj import CRS, Transformer
 
 # extract the year from the command line
 if len(argv) not in [2, 3]:
-    print('usage: sepr-monthly.py <year> [<filename>]')
+    print('usage: sepa-monthly.py <year> [<filename>]')
     exit(1)
 year = int(argv[1])
 if len(argv) > 2:
