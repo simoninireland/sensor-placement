@@ -20,6 +20,8 @@
 
 
 from itertools import product
+from joblib import Parallel, delayed
+from multiprocessing import cpu_count
 import numpy
 from geopandas import GeoDataFrame
 from geovoronoi import voronoi_regions_from_coords, points_to_coords
@@ -115,7 +117,107 @@ def nnn_geometry(df_points, df_voronoi, xs, ys):
     return df_interpoints
 
 
-def nnn_tensor(df_points, df_voronoi, df_grid):
+# Original sequential version
+#
+# def nnn_tensor(df_points, df_voronoi, df_grid):
+#     '''Construct the natural nearest neighbour interpolation tensor from a
+#     set of samples taken within a boundary and sampled at the given
+#     grid of interpolation points.
+
+#     The tensor is a three-dimensional sparse `numpy.array` with axes
+#     corresponding to xs, ys, and points, with entries containing the
+#     weight given to each sample in interpolating each point.
+
+#     :param df_points: the sample points
+#     :param df_voronoi: the Voronoi diagram of the samples
+#     :param df_grid: the grid to interpolate onto
+#     :returns: a tensor'''
+
+#     # construct the tensor
+#     tensor = numpy.zeros((max(df_grid.x) + 1, max(df_grid.y) + 1, len(df_points)))
+
+#     # group the grid points by the real cell they lie within
+#     grid_grouped = df_grid.groupby('cell').groups
+
+#     # ignore any points outside of the Voronoi diagram
+#     if -1 in grid_grouped.keys():
+#         del grid_grouped[-1]
+
+#     # construct the weights
+#     for real_cell in grid_grouped.keys():
+#         # extract the neighbourhood of Voronoi cells,
+#         # the only ones that the cell around this sample point
+#         # can intersect and so the only computation we need to do
+#         df_real_neighbourhood = df_voronoi.loc[df_voronoi.loc[real_cell].neighbourhood]
+#         real_coords = points_to_coords(df_real_neighbourhood.centre)
+#         real_boundary_shape = df_voronoi.loc[real_cell].boundary
+
+#         # construct an array that will hold the co-ordinates of all the real points
+#         # and the synthetic point
+#         synthetic_coords = numpy.append(real_coords, [[0, 0]], axis=0)
+
+#         for pt in grid_grouped[real_cell]:
+#             # re-compute the Voronoi cells given the synthetic point
+#             p = df_grid.loc[pt]
+#             synthetic_coords[-1] = points_to_coords([p.geometry])[0]
+#             synthetic_voronoi_cells, synthetic_voronoi_centres = voronoi_regions_from_coords(synthetic_coords, real_boundary_shape)
+
+#             # get the synthetic cell
+#             i = [i for i in synthetic_voronoi_centres.keys() if len(synthetic_coords) - 1 in synthetic_voronoi_centres[i]][0]
+#             synthetic_cell = synthetic_voronoi_cells[i]
+
+#             # compute the weights
+#             synthetic_cell_area = synthetic_cell.area
+#             for _, r in df_real_neighbourhood.iterrows():
+#                 area = r.geometry.intersection(synthetic_cell).area
+#                 if area > 0.0:
+#                     tensor[int(p['x']), int(p['y']), int(r['sample'])] = area / synthetic_cell_area
+
+#     return tensor
+
+
+def nnn_tensor_worker(df_voronoi, df_grid,
+                      df_real_neighbourhood, real_coords, real_boundary_shape,
+                      points):
+    '''Construct the natural nearest neighbour interpolation tensor from a
+    set of samples taken within a boundary and sampled at the given
+    grid of interpolation points.
+
+    :param df_voronoi: the Voronoi diagram of the samples
+    :param df_grid: the grid to interpolate onto
+    :param df_real_neighbourhood: the neighbourhood within which to compute
+    :param real_coords: the co-ordinates tof sample points
+    :param real_boundary_shape: the neighbnourhood boundary
+    :param points: the interpolation points
+    :returns: a tensor'''
+
+     # construct an array that will hold the co-ordinates of all the real points
+    # and the synthetic point
+    synthetic_coords = numpy.append(real_coords, [[0, 0]], axis=0)
+
+    # construct the partial tensor
+    tensor = []
+
+    for _, p in points.iterrows():
+        # re-compute the Voronoi cells given the synthetic point
+        synthetic_coords[-1] = points_to_coords([p.geometry])[0]
+        synthetic_voronoi_cells, synthetic_voronoi_centres = voronoi_regions_from_coords(synthetic_coords, real_boundary_shape)
+
+        # get the synthetic cell
+        i = [i for i in synthetic_voronoi_centres.keys() if len(synthetic_coords) - 1 in synthetic_voronoi_centres[i]][0]
+        synthetic_cell = synthetic_voronoi_cells[i]
+
+        # compute the weights
+        synthetic_cell_area = synthetic_cell.area
+        for _, r in df_real_neighbourhood.iterrows():
+            area = r.geometry.intersection(synthetic_cell).area
+            if area > 0.0:
+                tensor.append((int(p['x']), int(p['y']), int(r['sample']), area / synthetic_cell_area))
+
+    return tensor
+
+
+def nnn_tensor(df_points, df_voronoi, df_grid, cores=1):
     '''Construct the natural nearest neighbour interpolation tensor from a
     set of samples taken within a boundary and sampled at the given
     grid of interpolation points.
@@ -124,10 +226,35 @@ def nnn_tensor(df_points, df_voronoi, df_grid):
     corresponding to xs, ys, and points, with entries containing the
     weight given to each sample in interpolating each point.
 
+    The operation can be run in parallel on a multicore machine. The degree
+    of parallelism is given by cores, which may be:
+
+    - 0 to use the maximum number of available cores
+    - +n to use a specific number of cores
+    - -n to leave n cores unused
+
+    There is no benefit to using a degree of parallelism greater than
+    the number of physical cores on the machine. In cases where there are
+    very few cells to compute a smaller amount of parallelism will
+    be used anyway.
+
     :param df_points: the sample points
     :param df_voronoi: the Voronoi diagram of the samples
     :param df_grid: the grid to interpolate onto
+    :param cores: (optional) number of cores to use (defaults to 1)
     :returns: a tensor'''
+
+    # compute the nunber of cores to use
+    if cores == 0:
+        # use all available or the number of cells, whichever is smaller
+        cores = min(len(df_points), cpu_count())
+    elif cores < 0:
+        # use fewer than available, down to a minimum of 1
+        cores = min(len(df_points), max(cpu_count() + cores, 1))   # cpu_count() + cores as cores is negative
+    else:
+        # use the number of cores requested, up to the maximum available,
+        # redcuced if there are only a few cells
+        cores = min(cores, len(df_points), cpu_count())
 
     # construct the tensor
     tensor = numpy.zeros((max(df_grid.x) + 1, max(df_grid.y) + 1, len(df_points)))
@@ -139,35 +266,27 @@ def nnn_tensor(df_points, df_voronoi, df_grid):
     if -1 in grid_grouped.keys():
         del grid_grouped[-1]
 
-    # construct the weights
+    # run each cell as its own job
+    jobs = []
     for real_cell in grid_grouped.keys():
-        # extract the neighbourhood of Voronoi cells,
-        # the only ones that the cell around this sample point
-        # can intersect and so the only computation we need to do
+        # determine the area to compute
         df_real_neighbourhood = df_voronoi.loc[df_voronoi.loc[real_cell].neighbourhood]
         real_coords = points_to_coords(df_real_neighbourhood.centre)
         real_boundary_shape = df_voronoi.loc[real_cell].boundary
+        synthetic_points = df_grid.iloc[grid_grouped[real_cell]]
 
-        # construct an array that will hold the co-ordinates of all the real points
-        # and the synthetic point
-        synthetic_coords = numpy.append(real_coords, [[0, 0]], axis=0)
+        # create a job record for this cell
+        jobs.append((df_real_neighbourhood, real_coords, real_boundary_shape,
+                     synthetic_points))
 
-        for pt in grid_grouped[real_cell]:
-            # re-compute the Voronoi cells given the synthetic point
-            p = df_grid.loc[pt]
-            synthetic_coords[-1] = points_to_coords([p.geometry])[0]
-            synthetic_voronoi_cells, synthetic_voronoi_centres = voronoi_regions_from_coords(synthetic_coords, real_boundary_shape)
+    # run each cell as its own job
+    with Parallel(n_jobs=cores) as processes:
+        rcs = processes(delayed(lambda j: nnn_tensor_worker(df_voronoi, df_grid, *j))(j) for j in jobs)
 
-            # get the synthetic cell
-            i = [i for i in synthetic_voronoi_centres.keys() if len(synthetic_coords) - 1 in synthetic_voronoi_centres[i]][0]
-            synthetic_cell = synthetic_voronoi_cells[i]
-
-            # compute the weights
-            synthetic_cell_area = synthetic_cell.area
-            for _, r in df_real_neighbourhood.iterrows():
-                area = r.geometry.intersection(synthetic_cell).area
-                if area > 0.0:
-                    tensor[int(p['x']), int(p['y']), int(r['sample'])] = area / synthetic_cell_area
+        # store the computed weights in the tensor
+        for ds in rcs:
+            for (x, y, sample, value) in ds:
+                tensor[x, y, sample] = value
 
     return tensor
 

@@ -1,5 +1,6 @@
 netcdf4
 numpy
+joblib
 networkx
 pygsp
 notebook >= 6.2.0
