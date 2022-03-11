@@ -38,13 +38,14 @@ def nnn_voronoi(df_points, boundary_shape):
     samples should lie within the boundary_shape.
 
     The returned `DataFrame` will contain the `geometry` of each cell,
-    it's `centre` (the sample point it surrounds), `sample` the index
-    of the sample point in the sample vector, a `neighbourhood` holding
+    it's `centre` (the sample point it surrounds), a `neighbourhood` holding
     the indices of the cells that intersect this cell (including the
     index of the cell itself), and a `boundary` holding the outer
     boundary of this set. This is all the topological information
     contained in the Voronoi diagram, plus a link to the way
-    sample points are represented as a vector.
+    sample points are represented as a vector. The index of the DataFrame
+    is the sample point corresponding to the Voronoi cell, meaning that
+    samples and cells share a common index.
 
     :param df_points: the samples
     :param boundary_shape: the boundary surrounding the samples
@@ -62,13 +63,17 @@ def nnn_voronoi(df_points, boundary_shape):
     cells = list(voronoi_cells.keys())
     df_voronoi = GeoDataFrame({'centre': [df_points.iloc[voronoi_centres[i][0]].geometry for i in cells],
                                'geometry': voronoi_cells.values(),
-                               'sample': [voronoi_centres[i][0] for i in cells]})
+                               'id': [df_points.index[voronoi_centres[i][0]] for i in cells]})
+
+    # use the sample identifier as the cell identifier
+    df_voronoi.set_index('id', inplace=True)
 
     # add the neighbourhoods of each cell, their index and overall boundary
     neighbourhoods = []
     boundaries = []
     for i, cell in df_voronoi.iterrows():
-        # indices of intersecting neighbour cells
+        # indices of intersecting neighbour cells, which match both
+        # the index of the Voronoi cells and the corresponding sample points
         neighbours = list(df_voronoi[df_voronoi.geometry.touches(cell.geometry)].index) + [i]
         neighbourhoods.append(neighbours)
 
@@ -105,6 +110,7 @@ def nnn_geometry(df_points, df_voronoi, xs, ys):
                                    'geometry': [Point(x, y) for (x, y) in product(xs, ys)]})
 
     # add the cell containing each point
+    # sd: this needs to be a lot faster
     cells = []
     for _, cell in df_interpoints.iterrows():
         cs = df_voronoi[df_voronoi.geometry.intersects(cell.geometry)]
@@ -117,9 +123,9 @@ def nnn_geometry(df_points, df_voronoi, xs, ys):
     return df_interpoints
 
 
-# Original sequential version
+# Sequential version
 #
-# def nnn_tensor(df_points, df_voronoi, df_grid):
+# def nnn_tensor_seq(df_points, df_voronoi, df_grid):
 #     '''Construct the natural nearest neighbour interpolation tensor from a
 #     set of samples taken within a boundary and sampled at the given
 #     grid of interpolation points.
@@ -139,12 +145,13 @@ def nnn_geometry(df_points, df_voronoi, xs, ys):
 #     # group the grid points by the real cell they lie within
 #     grid_grouped = df_grid.groupby('cell').groups
 
-#     # ignore any points outside of the Voronoi diagram
+#     # ignore any points outside the Voronoi diagram
 #     if -1 in grid_grouped.keys():
 #         del grid_grouped[-1]
 
 #     # construct the weights
 #     for real_cell in grid_grouped.keys():
+#         print(real_cell, stationForCell(df_points, df_voronoi, real_cell))
 #         # extract the neighbourhood of Voronoi cells,
 #         # the only ones that the cell around this sample point
 #         # can intersect and so the only computation we need to do
@@ -166,12 +173,15 @@ def nnn_geometry(df_points, df_voronoi, xs, ys):
 #             i = [i for i in synthetic_voronoi_centres.keys() if len(synthetic_coords) - 1 in synthetic_voronoi_centres[i]][0]
 #             synthetic_cell = synthetic_voronoi_cells[i]
 
+#             # get the index of the sample
+#             s = list(df_points.index).index(real_cell)
+
 #             # compute the weights
 #             synthetic_cell_area = synthetic_cell.area
 #             for _, r in df_real_neighbourhood.iterrows():
 #                 area = r.geometry.intersection(synthetic_cell).area
 #                 if area > 0.0:
-#                     tensor[int(p['x']), int(p['y']), int(r['sample'])] = area / synthetic_cell_area
+#                     tensor[int(p['x']), int(p['y']), s] = area / synthetic_cell_area
 
 #     return tensor
 
@@ -195,7 +205,7 @@ def nnn_tensor_worker(df_voronoi, df_grid,
     # and the synthetic point
     synthetic_coords = numpy.append(real_coords, [[0, 0]], axis=0)
 
-    # construct the partial tensor
+    # construct the list for tensor updates
     tensor = []
 
     for _, p in points.iterrows():
@@ -207,12 +217,15 @@ def nnn_tensor_worker(df_voronoi, df_grid,
         i = [i for i in synthetic_voronoi_centres.keys() if len(synthetic_coords) - 1 in synthetic_voronoi_centres[i]][0]
         synthetic_cell = synthetic_voronoi_cells[i]
 
+        # get the index of the sample
+        s = list(df_points.index).index(real_cell)
+
         # compute the weights
         synthetic_cell_area = synthetic_cell.area
         for _, r in df_real_neighbourhood.iterrows():
             area = r.geometry.intersection(synthetic_cell).area
             if area > 0.0:
-                tensor.append((int(p['x']), int(p['y']), int(r['sample']), area / synthetic_cell_area))
+                tensor.append((int(p['x']), int(p['y']), s, area / synthetic_cell_area))
 
     return tensor
 
@@ -262,7 +275,7 @@ def nnn_tensor(df_points, df_voronoi, df_grid, cores=1):
     # group the grid points by the real cell they lie within
     grid_grouped = df_grid.groupby('cell').groups
 
-    # ignore any points outside of the Voronoi diagram
+    # ignore any points outside the Voronoi diagram
     if -1 in grid_grouped.keys():
         del grid_grouped[-1]
 
@@ -273,7 +286,7 @@ def nnn_tensor(df_points, df_voronoi, df_grid, cores=1):
         df_real_neighbourhood = df_voronoi.loc[df_voronoi.loc[real_cell].neighbourhood]
         real_coords = points_to_coords(df_real_neighbourhood.centre)
         real_boundary_shape = df_voronoi.loc[real_cell].boundary
-        synthetic_points = df_grid.iloc[grid_grouped[real_cell]]
+        synthetic_points = df_grid.loc[grid_grouped[real_cell]]
 
         # create a job record for this cell
         jobs.append((df_real_neighbourhood, real_coords, real_boundary_shape,
@@ -295,6 +308,9 @@ def apply_tensor(tensor, samples):
     '''Apply an interpolation tensor to a sample vector, giving
     a grid of interpolated points.
 
+    The implementation is optimised to assume that the tensor is
+    very sparse, mostly zero everywhere.
+
     :param tensor: the tensor
     :param samples: the sample vector
     :param boundary_shape: the overall shape of the region
@@ -307,14 +323,19 @@ def apply_tensor(tensor, samples):
         raise ValueError('Tensor needs {n} samples, got {m}'.format(n=tensor.shape[2],
                                                                     m=len(samples)))
 
-    # create the grid
+    # create the result grid
     grid = numpy.zeros((tensor.shape[0], tensor.shape[1]))
 
-    # apply the tensor
-    sample = 0
+    # apply the tensor, optimising for sparseness
     for x in range(grid.shape[0]):
         for y in range(grid.shape[1]):
-            grid[x, y] = numpy.dot(tensor[x, y, :], samples)
+            # extract indices of the non-zero elements of each weighting row
+            nz = numpy.nonzero(tensor[x, y, :])[0]
+
+            # compute the weighted sum
+            if len(nz) > 0:
+                # sparse dot product, include only the non-zero elements
+                grid[x, y] = numpy.dot(tensor[x, y, nz], samples[nz])
 
     return grid
 
