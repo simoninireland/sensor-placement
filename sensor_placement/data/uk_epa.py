@@ -1,4 +1,4 @@
-# Adapter for UK EPA rainfall API
+# Adaptor for UK EPA rainfall API
 #
 # Copyright (C) 2022 Simon Dobson
 #
