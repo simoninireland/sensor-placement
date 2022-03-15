@@ -18,6 +18,7 @@
 # You should have received a copy of the GNU General Public License
 # along with this software. If not, see <http://www.gnu.org/licenses/gpl.html>.
 
+# This code use Environment Agency rainfall data from the real-time data API (Beta)
 # See https://environment.data.gov.uk/flood-monitoring/doc/rainfall
 
 import requests

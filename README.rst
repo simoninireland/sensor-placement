@@ -72,3 +72,5 @@ Author and license
 Copyright (c) 2022, Simon Dobson <simon.dobson@st-andrews.ac.uk>
 
 Licensed under the `GNU General Public Licence v3 <https://www.gnu.org/licenses/gpl-3.0.en.html>`_.
+
+This code use Environment Agency rainfall data from the real-time data API (Beta).
