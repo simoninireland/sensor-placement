@@ -18,6 +18,8 @@
 # You should have received a copy of the GNU General Public License
 # along with this software. If not, see <http://www.gnu.org/licenses/gpl.html>.
 
+# This code use Environment Agency rainfall data from the real-time data API (Beta)
+
 from sys import argv
 from dateparser import parse
 from sensor_placement.data import uk_epa
