@@ -50,10 +50,10 @@ You can now download the datasets by running:
 
    make datasets
 
-This will take a *long* time: how long depends on the speed of your
-broadband connection, but the download is over 1.2GB in size, so it's
-best to get at least a coffee, and probably dinner, while you wait. You
-need only perform this step once, of course.
+This downloads about 200MB of data from various sources, so depending
+on your internet connection you may want to get at least a coffee, and
+possibly dinner, while you wait. You need only perform this step once,
+of course.
 
 You can then access the notebooks by running:
 
