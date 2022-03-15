@@ -22,7 +22,8 @@ SOURCE = \
 	sensor_placement/nnni.py \
 	sensor_placement/data/__init__.py \
 	sensor_placement/data/raw.py \
-	sensor_placement/data/uk_epa.py
+	sensor_placement/data/uk_epa.py \
+	sensor_placement/data/sepa.py
 
 # Utilities
 UTILS = utils/
