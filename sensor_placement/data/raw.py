@@ -44,19 +44,19 @@ def toNetCDF(fn,
              rainfall):
     '''Create a NetCDF4 file holding raw observations..
 
-    :param fn: filename (None generates an in-memory dataset
-    :param description: text descritpion of the dataset
+    :param fn: filename (None generates an in-memory dataset)
+    :param description: text description of the dataset
     :param source: text source, typically the root URL
-    :param start: start date for the observations
+    :param start: start date for observations
     :param end: end date for observations
     :param resolution: 'daily' or 'monthly'
-    :param id_station: array of station identifiers
+    :param id_station: array of station identifiers (ints)
     :param names: array of station names
     :param es_station: array of station eastings
     :param ns_station: array of station northings
     :param lat_station: array of station latitudes
     :param lon_station: array of station longitudes
-    :param times: array of sample times, in days sinced 1800-01-01
+    :param times: array of sample times, in days since 1800-01-01
     :param rainfall: array of observations, keyed by time and station index
     :returns: the dataset'''
 
@@ -120,7 +120,7 @@ def toNetCDF(fn,
     names = numpy.array(list(map(lambda s: f'{s:<{maxlen}}', names)), dtype=f'<S{maxlen}')
     names_var[:] = names
 
-    # close the datasetonly if not in-memory
+    # close the dataset only if not in-memory
     if fn is not None:
         root.close()
 
