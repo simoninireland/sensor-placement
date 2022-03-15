@@ -11,6 +11,7 @@ doc8
 twine
 jedi
 jedi-language-server
+ptvsd >= 4.2
 matplotlib
 seaborn
 mypy
