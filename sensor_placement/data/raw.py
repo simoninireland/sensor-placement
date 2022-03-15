@@ -56,14 +56,16 @@ def toNetCDF(fn,
     :param ns_station: array of station northings
     :param lat_station: array of station latitudes
     :param lon_station: array of station longitudes
-    :param times: array of sampole times, in days sinced 1800-01-01
+    :param times: array of sample times, in days sinced 1800-01-01
     :param rainfall: array of observations, keyed by time and station index
     :returns: the dataset'''
 
     # create the NetCDF file
     if fn is None:
+        # in-memory dataset
         root = Dataset('in-memory.nc', 'w', diskless=True, persist=False)
     else:
+        # dataset on disc
         root = Dataset(fn, 'w', format='NETCDF4')
 
     # standard metadata
@@ -118,7 +120,7 @@ def toNetCDF(fn,
     names = numpy.array(list(map(lambda s: f'{s:<{maxlen}}', names)), dtype=f'<S{maxlen}')
     names_var[:] = names
 
-    # close the file
+    # close the datasetonly if not in-memory
     if fn is not None:
         root.close()
 
