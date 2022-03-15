@@ -52,6 +52,13 @@ CEH_EXAMPLE_MONTHLY = CEH_GEAR_monthly_GB_2017.nc
 CEDA_CA = online_ca_client
 CEDA_CA_ROOTS = $(ROOT)/trustroots
 CEDA_CERTIFICATE = $(ROOT)/ceda.pem
+CEDA_MONTHLY_EXAMPLE_YEAR = 2017
+CEDA_MONTHLY_EXAMPLE = ceda_midas_monthly_$(CEDA_MONTHLY_EXAMPLE_YEAR).nc
+
+# SEPA rain gauges
+# see https://www2.sepa.org.uk/rainfall/DataDownload
+SEPA_MONTHLY_EXAMPLE_YEAR = 2017
+SEPA_MONTHLY_EXAMPLE = sepa_monthly_$(SEPA_MONTHLY_EXAMPLE_YEAR).nc
 
 # County boundaries
 # see https://ckan.publishing.service.gov.uk/dataset/counties-and-unitary-authorities-december-2018-boundaries-gb-buc
@@ -88,6 +95,7 @@ RSYNC = rsync
 TR = tr
 CAT = cat
 SED = sed
+GIT = git
 RM = rm -fr
 CP = cp
 CHDIR = cd
@@ -132,7 +140,7 @@ help:
 	@make usage
 
 # Download datasets
-datasets: env $(DATASETS_DIR)/$(CEH_EXAMPLE_MONTHLY) $(DATASETS_DIR)/$(UK_BOUNDARIES) $(CEDA_CERTIFICATE)
+datasets: env $(DATASETS_DIR)/$(CEH_EXAMPLE_MONTHLY) $(DATASETS_DIR)/$(UK_BOUNDARIES) $(CEDA_CERTIFICATE) $(DATASETS_DIR)/$(CEDA_MONTHLY_EXAMPLE) $(DATASETS_DIR)/$(SEPA_MONTHLY_EXAMPLE)
 
 # CEH interpolated monthlies
 $(DATASETS_DIR)/$(CEH_EXAMPLE_MONTHLY):
@@ -145,11 +153,19 @@ $(DATASETS_DIR)/$(UK_BOUNDARIES):
 # CEDA credentials
 # see https://help.ceda.ac.uk/article/4442-ceda-opendap-scripted-interactions
 online_ca_client:
-	git clone https://github.com/cedadev/online_ca_client
-	cd online_ca_client/contrail/security/onlineca/client/sh/ && ./onlineca-get-trustroots-wget.sh -U https://slcs.ceda.ac.uk/onlineca/trustroots/ -c $(ROOT)/trustroots -b
+	$(GIT) clone https://github.com/cedadev/online_ca_client
+	$(CHDIR) online_ca_client/contrail/security/onlineca/client/sh/ && ./onlineca-get-trustroots-wget.sh -U https://slcs.ceda.ac.uk/onlineca/trustroots/ -c $(ROOT)/trustroots -b
 
 $(CEDA_CERTIFICATE): online_ca_client
 	$(ACTIVATE) && cd online_ca_client/contrail/security/onlineca/client/sh/ && echo $$CEDA_PASSWORD | ./onlineca-get-cert-wget.sh -U https://slcs.ceda.ac.uk/onlineca/certificate/ -c $(CEDA_CA_ROOTS) -l $$CEDA_USERNAME -S -o $(CEDA_CERTIFICATE)
+
+# CEDA example month
+$(DATASETS_DIR)/$(CEDA_MONTHLY_EXAMPLE): $(CEDA_CERTIFICATE)
+	$(ACTIVATE) && PYTHONPATH=. $(PYTHON) $(UTILS)/ceda-monthly.py $(CEDA_MONTHLY_EXAMPLE_YEAR) $(DATASETS_DIR)/$(CEDA_MONTHLY_EXAMPLE)
+
+# SEPA example month
+$(DATASETS_DIR)/$(SEPA_MONTHLY_EXAMPLE):
+	$(ACTIVATE) && PYTHONPATH=. $(PYTHON) $(UTILS)/sepa-monthly.py $(SEPA_MONTHLY_EXAMPLE_YEAR) $(DATASETS_DIR)/$(SEPA_MONTHLY_EXAMPLE)
 
 # Run the notebook server
 live: env
