@@ -18,9 +18,20 @@
 # You should have received a copy of the GNU General Public License
 # along with this software. If not, see <http://www.gnu.org/licenses/gpl.html>.
 
-from datetime import datetime
+from datetime import date, datetime
 from netCDF4 import Dataset
+from pyproj import CRS, Transformer
 import numpy
+
+
+# Reference date 1800-1-1, matched to CEH-GEAR base
+days_base = date(year=1800, month=1, day=1)
+
+
+# Co-ordinate transforms
+uk_grid_crs = CRS.from_string('EPSG:27700')            # UK national grid
+latlon_crs = CRS.from_string('EPSG:4326')              # global lat/lon
+proj = Transformer.from_crs(latlon_crs, uk_grid_crs)
 
 
 def toNetCDF(fn,

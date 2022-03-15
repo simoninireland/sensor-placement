@@ -24,21 +24,11 @@ import requests
 from datetime import date, datetime, timedelta
 from dateparser import parse
 import numpy
-from pyproj import CRS, Transformer
-from sensor_placement.data import toNetCDF
+from sensor_placement.data import toNetCDF, days_base, proj
 
 
 # Root URL for the API
 root_url = 'http://environment.data.gov.uk/flood-monitoring'
-
-# Reference date 1800-1-1
-days_base = date(year=1800, month=1, day=1, )
-
-# Co-ordinate transforms
-uk_grid_crs = CRS.from_string('EPSG:27700')            # UK national grid
-latlon_crs = CRS.from_string('EPSG:4326')              # global lat/lon
-proj = Transformer.from_crs(latlon_crs, uk_grid_crs)
-
 
 def uk_epa(start, end, fn = None):
     '''Retrieve EPA daily observations betweeen the two date ranges,
@@ -124,7 +114,7 @@ def uk_epa(start, end, fn = None):
         rs = req.json()
 
         # add to array against the appropriate day
-        print('.', end='')
+        print('.', end='', flush=True)
         for m in rs['items']:
             # sometimes there's malformed data
             if 'dateTime' not in m.keys():
@@ -149,7 +139,7 @@ def uk_epa(start, end, fn = None):
             # add to day total
             day = (d - sd).days
             rainfall[day, station] += float(m['value'])
-    print()
+    print(';', flush=True)
 
     # create the file
     return toNetCDF(fn,
