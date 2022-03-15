@@ -125,3 +125,33 @@ def toNetCDF(fn,
         root.close()
 
     return root
+
+
+def toDataFrame(nc):
+    '''Convert a NetCDF dataset to a ``geopandas`` ``GeoDataFrame``. This maps
+    only the stations and their locations, not the samples.
+
+    :param nc: the dataset or filename
+    :returns: a dataframe'''
+    if not isinstance(nc, Dataset):
+        nc = Dataset(nc)
+
+    # create a DataFrame for the dataset
+    stations = GeoDataFrame(columns=['name', 'id',
+                                     'east', 'north', 'longitude', 'latitude',
+                                     'geometry'])
+
+    # populate from the dataset
+    for i in range(len(nc['station'])):
+        stations.loc[i] = {'id': int(nc['station'][i]),
+                           'name': nc['name'][i],
+                           'easting': nc['x'][i],
+                           'northing': nc['y'][i],
+                           'longitude': nc['long'][i],
+                           'latitude': nc['lat'][i],
+                           'geometry': Point(nc['long'][i], nc['lat'][i])}
+
+    # use the station id as the DataFrame index
+    stations.set_index('id', inplace=True)
+
+    return stations
