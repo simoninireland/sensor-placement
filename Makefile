@@ -19,13 +19,17 @@ NOTEBOOKS =  \
 # Source code
 SOURCE = \
 	sensor_placement/__init__.py \
-	sensor_placement/nnni.py
+	sensor_placement/nnni.py \
+	sensor_placement/data/__init__.py \
+	sensor_placement/data/raw.py \
+	sensor_placement/data/uk_epa.py
 
 # Utilities
 UTILS = utils/
 SCRIPTS = \
 	$(UTILS)/sepa-monthly.py \
-	$(UTILS)/ceda-monthly.py
+	$(UTILS)/ceda-monthly.py \
+	$(UTILS)/epa-daily.py
 
 
 # ----- Data -----
