@@ -19,5 +19,7 @@
 # File format
 from .raw import days_base, uk_grid_crs, latlon_crs, proj, toNetCDF
 
-# Adapters
+# Adaptors
 from .uk_epa import uk_epa
+from .sepa import sepa
+from .ceda import ceda_midas

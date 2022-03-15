@@ -18,14 +18,14 @@
 # GNU General Public License for more details.
 #
 # You should have received a copy of the GNU General Public License
-# along with trhis software. If not, see <http://www.gnu.org/licenses/gpl.html>.
+# along with this software. If not, see <http://www.gnu.org/licenses/gpl.html>.
 
 from sys import argv
 from dateparser import parse
 from sensor_placement.data import sepa
 
 
-# Extract yearfrom the command line
+# Extract year from the command line
 if len(argv) not in [2, 3]:
     print('usage: sepa-monthly.py <year> [<filename>]')
     exit(1)
