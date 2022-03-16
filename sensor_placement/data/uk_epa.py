@@ -39,10 +39,11 @@ def uk_epa(start, end, fn = None):
     :param end: the end date
     :param fn: (optional) the file to create (defaults to in-memory)
     :returns: the dataset'''
+    session = requests.Session()
 
     # grab the current list of stations
     url = f'{root_url}/id/stations?parameter=rainfall'
-    req = requests.get(url)
+    req = session.get(url)
     if req.status_code != 200:
         raise Exception('Can\'t get stations: {e}'.format(e=req.status_code))
     ss = req.json()
@@ -107,7 +108,7 @@ def uk_epa(start, end, fn = None):
         label = latlons[id][0]
         measure = latlons[id][5]
         url = f'{measure}/readings?startdate={startDate}&enddate={endDate}'
-        req = requests.get(url)
+        req = session.get(url)
         if req.status_code != 200:
             raise Exception('Can\'t get measure {m} at {l}: {e}'.format(m=measure,
                                                                         l=label,
@@ -123,6 +124,9 @@ def uk_epa(start, end, fn = None):
                 continue
             elif 'value' not in m.keys():
                 print('No value for reading (ignored)')
+                continue
+            elif isinstance(m['value'], list):
+                print('List-valued value? ({l})'.format(l=m['value']))
                 continue
 
             # extract the date
@@ -140,7 +144,7 @@ def uk_epa(start, end, fn = None):
             # add to day total
             day = (d - sd).days
             rainfall[day, station] += float(m['value'])
-    print(';', flush=True)
+    print('', flush=True)
 
     # create the file
     return toNetCDF(fn,

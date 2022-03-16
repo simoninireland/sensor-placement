@@ -44,10 +44,11 @@ def sepa(year, fn = None):
     :param year: any date in the desired year
     :param fn: (optional) the file to create (defaults to in-memory)
     :returns: the dataset'''
+    session = requests.Session()
 
     # grab the current list of stations
     url = f'{root_url}/api/Stations?json=true'
-    req = requests.get(url)
+    req = session.get(url)
     if req.status_code != 200:
         raise Exception('Can\'t get stations: {e}'.format(e=req.status_code))
     ss = req.json()
@@ -93,7 +94,7 @@ def sepa(year, fn = None):
         id = id_station[station]
         label = latlons[id][0]
         url = f'{monthly_url}/{id}?all=true'
-        req = requests.get(url)
+        req = session.get(url)
         if req.status_code != 200:
             raise Exception('Can\'t get data for {l} from {url}: {e}'.format(url=url,
                                                                              l=label,

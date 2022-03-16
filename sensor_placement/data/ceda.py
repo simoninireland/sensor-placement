@@ -44,16 +44,18 @@ def ceda_midas(year, fn = None, cert = None):
     :param fn: (optional) the file to create (defaults to in-memory)
     :param cert: (optional) path to  CEDA certificate file
     :returns: the dataset'''
+    session = requests.Session()
 
     # make sure we have the necessary certificate
     if cert is None:
         cert = certificate
     if not exists(cert):
         raise Exception(f'No certificate file {cert}: do you need to create one?')
+    session.cert = cert
 
     # grab the current list of stations
     url = f'{root_url}/midas-open_uk-daily-rain-obs_dv-202107_station-metadata.csv'
-    req = requests.get(url, cert=cert)
+    req = session.get(url)
     if req.status_code != 200:
         raise Exception('Can\'t get stations: {e}'.format(e=req.status_code))
 
@@ -126,7 +128,7 @@ def ceda_midas(year, fn = None, cert = None):
         id = id_station[station]
         label = latlons[id][0]
         url = latlons[id][5]
-        req = requests.get(url, cert=cert)
+        req = session.get(url)
         if req.status_code != 200:
             print('Can\'t get data for {l} from {url}: {e}'.format(url=url,
                                                                    l=label,
