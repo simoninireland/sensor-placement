@@ -21,6 +21,7 @@
 from datetime import date, datetime
 from netCDF4 import Dataset
 from pyproj import CRS, Transformer
+from shapely.geometry import Point
 import numpy
 
 
@@ -127,9 +128,11 @@ def toNetCDF(fn,
     return root
 
 
-def toDataFrame(nc):
+def stations(nc):
     '''Convert a NetCDF dataset to a ``geopandas`` ``GeoDataFrame``. This maps
-    only the stations and their locations, not the samples.
+    only the stations and their locations, not the samples. The order of the
+    stations in the DataFrame matches the indices of samples in
+    the NetCDF ``rainfall_amount`` variable.
 
     :param nc: the dataset or filename
     :returns: a dataframe'''
@@ -138,15 +141,15 @@ def toDataFrame(nc):
 
     # create a DataFrame for the dataset
     stations = GeoDataFrame(columns=['name', 'id',
-                                     'east', 'north', 'longitude', 'latitude',
+                                     'x', 'y', 'longitude', 'latitude',
                                      'geometry'])
 
     # populate from the dataset
     for i in range(len(nc['station'])):
         stations.loc[i] = {'id': int(nc['station'][i]),
                            'name': nc['name'][i],
-                           'easting': nc['x'][i],
-                           'northing': nc['y'][i],
+                           'x': nc['x'][i],
+                           'y': nc['y'][i],
                            'longitude': nc['long'][i],
                            'latitude': nc['lat'][i],
                            'geometry': Point(nc['long'][i], nc['lat'][i])}

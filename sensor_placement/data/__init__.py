@@ -17,7 +17,7 @@
 # along with this software. If not, see <http://www.gnu.org/licenses/gpl.html>.
 
 # File format
-from .raw import days_base, uk_grid_crs, latlon_crs, proj, toNetCDF
+from .raw import days_base, uk_grid_crs, latlon_crs, proj, stations
 
 # Adaptors
 from .uk_epa import uk_epa
