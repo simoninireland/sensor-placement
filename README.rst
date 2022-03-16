@@ -65,6 +65,40 @@ which will open a notebook in a web browser. You'll probably want to
 start by looking at ./datacheck.ipynb to make sure the data has come
 down properly.
 
+If you want to start again for any reason, you can clean-up the build
+by running:
+
+::
+
+   make reallyclean
+
+which will delete the virtual environment and the downloaded datasets.
+
+
+Downloading online datasets
+---------------------------
+
+The experiment has code to download datasets from three different
+online sources:
+
+- The `CEDA MIDAS collection
+  <https://help.ceda.ac.uk/article/4442-ceda-opendap-scripted-interactions>`_,
+  consisting of about 150 rain gauges across the UK
+- The `SEPA tipping buckets network
+  <https://www2.sepa.org.uk/rainfall/DataDownload>`_ of about 280
+  stations around Scotland
+- The `UK EPA rainfall network
+  <https://environment.data.gov.uk/flood-monitoring/doc/rainfall>`_ of
+  about 950 rain gauges in England and Wales
+
+These sources can be accessed programmatically using `adaptors
+<https://github.com/simoninireland/sensor-placement/tree/main/sensor_placement/data>`_
+that generate a common-format NetCDF4 file of observations. There are
+also `scripts
+<https://github.com/simoninireland/sensor-placement/tree/main/utils>`_
+for command-line access, which are used to download sample datasets
+during installation.
+
 
 Author and license
 ------------------
