@@ -348,7 +348,6 @@ def apply_tensor(tensor, samples):
 
     :param tensor: the tensor
     :param samples: the sample vector
-    :param boundary_shape: the overall shape of the region
     :returns: a grid of interpolated points
 
     '''
