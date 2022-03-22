@@ -111,6 +111,7 @@ DATE = `date`
 # Requirements and venv
 VENV = venv3
 REQUIREMENTS = requirements.txt
+DEV_REQUIREMENTS = dev-requirements.txt
 KNOWN_GOOD_REQUIREMENTS = known-good-requirements.txt
 
 # pyproj data
@@ -179,6 +180,7 @@ $(VENV):
 	$(VIRTUALENV) $(VENV)
 	$(ACTIVATE) && $(PIP) install -U pip wheel
 	$(ACTIVATE) && $(PIP) install -r $(REQUIREMENTS)
+	$(ACTIVATE) && $(PIP) install -r $(DEV_REQUIREMENTS)
 
 # Clean up the build
 clean:
