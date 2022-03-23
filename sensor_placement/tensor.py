@@ -22,13 +22,20 @@ from itertools import product
 import numpy
 from shapely.geometry import Point, MultiPoint
 from shapely.ops import unary_union, voronoi_diagram
+from pandas import Series
 from geopandas import GeoDataFrame
 
 
 class InterpolationTensor:
+    '''The abstract class of interpolation tensors.
+
+    The tensor is stored as a three-dimensional array with axes (lat, lon, sample).
+    This translates to the (y, x, sample): the rows of the tensor are the points
+    on the y-axis.
+    '''
 
     def __init__(self, points, boundary, ys, xs):
-        self._samples = points
+        self._samples = points.copy()   # we'll change this if editing the tensor
         self._boundary = boundary
         self._voronoi = None
         self._ys = ys
@@ -46,7 +53,7 @@ class InterpolationTensor:
 
     def voronoi(self):
         '''Construct a table of natural nearest neighbour Voronoi cells
-        and their adjacencies based on a set of samplepo points and a boundary.
+        and their adjacencies based on a set of sample points and a boundary.
         '''
 
         # check that all the sample points lie within the boundary
@@ -76,14 +83,12 @@ class InterpolationTensor:
         self._voronoi['neighbourhood'] = neighbourhoods
         self._voronoi['boundary'] = boundaries
 
-        return self._voronoi
-
     def voronoiCells(self, points, boundary):
         '''Compute the Voronoi cells of the points in the given set, clipped
         by the boundary.'''
 
         # compute the diagram
-        voronoi_cells = voronoi_diagram(MultiPoint(points))
+        voronoi_cells = voronoi_diagram(MultiPoint(points), boundary)
 
         # annoyingly the Voronoi cells don't come out in the order of
         # their centres, so we need to order them
@@ -120,15 +125,15 @@ class InterpolationTensor:
         # add the cell containing each point
         # sd: this needs to be a lot faster
         cells = []
-        for _, cell in self._grid.iterrows():
-            cs = self._voronoi[self._voronoi.geometry.intersects(cell.geometry)]
-            if len(cs) == 1:
-                cells.append(cs.index[0])
-            else:
-                cells.append(-1)
+        for _, pt in self._grid.iterrows():
+            cells.append(self.cellContaining(pt.geometry))
         self._grid['cell'] = cells
 
-        return self._grid
+    def cellContaining(self, p):
+        '''Return the cell containing the given point, or -1 if
+        the point does not lie in a cell.'''
+        cs = self._voronoi[self._voronoi.geometry.intersects(p)]
+        return cs.index[0] if len(cs) == 1 else -1
 
 
     # ---------- Tensor construction----------
@@ -136,8 +141,44 @@ class InterpolationTensor:
     def tensor(self):
         raise NotImplementedError('tensor')
 
+    def weightsFor(self, real_cells = None):
+        raise NotImplementedError('weightsFor')
+
 
     # ---------- Tensor editing ----------
+
+    def removeSample(self, s):
+        '''Remove sample from the tensor.'''
+
+        # retrieve the neighbourhood of the sample cell, not
+        # including the cell itself, and the boundary
+        pre_neighbours = self.voronoiNeighboursOf(s)
+        pre_neighbourhood = list(self._samples.loc[pre_neighbours].geometry)
+        pre_boundary = self.voronoiBoundaryOf(pre_neighbours + [s])
+
+        # remove the sample from the data structures
+        self._samples.drop([s], axis=0, inplace=True)
+        i = self._voronoi.index.get_loc(s)
+        self._tensor = numpy.delete(self._tensor, i, axis=2)
+        self._voronoi.drop([s], axis=0, inplace=True)
+
+        # re-compute the cells in the neighbourhood
+        # (Need to use an explicit Series because the elements are themselves lists)
+        cells = self.voronoiCells(pre_neighbourhood, pre_boundary)
+        self._voronoi.loc[pre_neighbours, ['geometry']] = cells
+        neighbourhoods = Series([self.voronoiNeighboursOf(i) + [i] for i in pre_neighbours],
+                                index=pre_neighbours)
+        self._voronoi.loc[pre_neighbours, 'neighbourhood'] = neighbourhoods
+
+        # re-compute the mapping from grid points to cells
+        pts = self._grid[self._grid['cell'].isin(pre_neighbours + [s])]
+        cells = []
+        for _, pt in pts.iterrows():
+            cells.append(self.cellContaining(pt.geometry))
+        self._grid.loc[pts.index, 'cell'] = cells
+
+        # re-compute the weights for all these points
+        self.weightsFor(pre_neighbours)
 
 
     # ---------- Access ----------
@@ -145,6 +186,16 @@ class InterpolationTensor:
     def __getattr__(self, attr):
         if attr == 'shape':
             return self._tensor.shape
+        else:
+            raise AttributeError(attr)
+
+    def samplePoints(self):
+        '''Return the sample points.'''
+        return list(self._samples['geometry'])
+
+    def cells(self):
+        '''Return the Voronoi cells in sample point order.'''
+        return list(self._voronoi['geometry'])
 
     def weights(self, y, x):
         '''Return a vector of tensor weights at the given point.'''
@@ -155,10 +206,16 @@ class InterpolationTensor:
 
     def __call__(self, samples):
         '''Apply the tensor to the given sample vector to give
-        a grid of interpolated points.
+        a grid of interpolated points. Equivalent to
+        :meth:`apply` with no clipping.
 
         :param samples: the sample vector
         :returns: a grid'''
+        return self.apply(samples)
+
+    def apply(self, samples, clipped = False):
+        '''Apply the tensor to the vector of samples, optionally clipping
+        the resulting grid to the boundary.'''
 
         # check type and dimensions
         if not isinstance(samples, numpy.ndarray):
@@ -171,17 +228,25 @@ class InterpolationTensor:
                                                                         m=len(samples)))
 
         # create the result grid
-        grid = numpy.zeros((self._tensor.shape[0], tensor.shape[1]))
+        grid = numpy.zeros((self._tensor.shape[0], self._tensor.shape[1]))
 
         # apply the tensor, optimising for sparseness
-        for x in range(grid.shape[0]):
-            for y in range(grid.shape[1]):
+        for i in range(grid.shape[0]):
+            for j in range(grid.shape[1]):
                 # extract indices of the non-zero elements of each weighting row
-                nz = numpy.nonzero(self._tensor[x, y, :])[0]
+                nz = numpy.nonzero(self._tensor[i, j, :])[0]
 
                 # compute the weighted sum
                 if len(nz) > 0:
                     # sparse dot product, including only the non-zero elements
-                    grid[x, y] = numpy.dot(self._tensor[x, y, nz], samples[nz])
+                    grid[i, j] = numpy.dot(self._tensor[i, j, nz], samples[nz])
+
+        if clipped:
+            mask = numpy.empty(grid.shape)
+            for i in range(grid.shape[0]):
+                for j in range(grid.shape[1]):
+                    y, x = self._ys[i], self._xs[j]
+                    mask[i, j] = not self._boundary.contains(Point(x, y))
+            grid = numpy.ma.masked_where(mask, grid, copy=False)
 
         return grid
