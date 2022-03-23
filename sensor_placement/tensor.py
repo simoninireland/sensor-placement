@@ -141,7 +141,7 @@ class InterpolationTensor:
     def tensor(self):
         raise NotImplementedError('tensor')
 
-    def weightsFor(self, real_cells = None):
+    def iterateWeightsFor(self, real_cells = None):
         raise NotImplementedError('weightsFor')
 
 
@@ -178,7 +178,8 @@ class InterpolationTensor:
         self._grid.loc[pts.index, 'cell'] = cells
 
         # re-compute the weights for all these points
-        self.weightsFor(pre_neighbours)
+        for (y, x, s, v) in self.iterateWeightsFor(pre_neighbours):
+            self._tensor[y, x, s] = v
 
 
     # ---------- Access ----------

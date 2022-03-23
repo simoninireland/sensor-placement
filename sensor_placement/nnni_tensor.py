@@ -19,27 +19,78 @@
 # along with this software. If not, see <http://www.gnu.org/licenses/gpl.html>.
 
 import numpy
+from joblib import Parallel, delayed
+from multiprocessing import cpu_count
 from sensor_placement import InterpolationTensor
 
 
 class NNNI(InterpolationTensor):
+    '''The operation can be run in parallel on a multicore machine. The
+       degree of parallelism is given by cores, which may be:
 
-    def __init__(self, points, boundary, xs, ys):
+        - 0 to use the maximum number of available cores
+        - +n to use a specific number of cores
+        - -n to leave n cores unused
+
+        There is no benefit to using a degree of parallelism greater than
+        the number of physical cores on the machine. In cases where there are
+        very few cells to compute a smaller amount of parallelism will
+        be used anyway.
+
+    '''
+
+    def __init__(self, points, boundary, xs, ys, cores = 1):
+        # compute the nunber of cores to use when computing the tensor initially
+        if cores == 0:
+            # use all available or the number of cells, whichever is smaller
+            self._cores = min(len(points), cpu_count())
+        elif cores < 0:
+            # use fewer than available, down to a minimum of 1
+            self._cores = min(len(points), max(cpu_count() + cores, 1))   # cpu_count() + cores as cores is negative
+        else:
+            # use the number of cores requested, up to the maximum available,
+            # redcuced if there are only a few cells
+            self._cores = min(cores, len(points), cpu_count())
+
+        # now initialise, using the right number of cores for the computation
         super().__init__(points, boundary, xs, ys)
 
     def tensor(self):
+        # construct the tensor
+        self._tensor = numpy.zeros((max(self._grid['y']) + 1, max(self._grid['x']) + 1, len(self._samples)))
+
+        # populate the tensor
+        if self._cores == 1:
+            self.tensorSeq()
+        else:
+            self.tensorPar()
+
+    def tensorSeq(self):
+        '''Construct the natural nearest neighbour interpolation tensor from a
+        set of samples taken within a boundary and sampled at the given
+        grid of interpolation points.'''
+        for (y, x, s, v) in self.iterateWeightsFor():
+            self._tensor[y, x, s] = v
+
+    def tensorPar(self, cores = 1):
         '''Construct the natural nearest neighbour interpolation tensor from a
         set of samples taken within a boundary and sampled at the given
         grid of interpolation points.'''
 
-        # construct the tensor
-        self._tensor = numpy.zeros((max(self._grid['y']) + 1, max(self._grid['x']) + 1, len(self._samples)))
+        # create parallel jobs for each cell
+        with Parallel(n_jobs=cores) as processes:
+            # run jobs
+            real_cells = list(self._voronoi.index)
+            rcs = processes(delayed(lambda c: list(self.iterateWeightsFor([c])))(cell) for cell in real_cells)
 
-        # compute the weights for all cells
-        self.weightsFor()
+            # store the computed weights in the tensor
+            for ds in rcs:
+                for (y, x, s, v) in ds:
+                    self._tensor[y, x, s] = v
 
-    def weightsFor(self, real_cells = None):
-        '''Compute the weights for all points in the given cells (all by default).'''
+    def iterateWeightsFor(self, real_cells = None):
+        '''Compute the weights for all points in the given cells (all by default).
+        This is an iterator that generates a stream of weights'''
 
         # group the grid points by the real cell they lie within
         grid_grouped = self._grid.groupby('cell').groups
@@ -72,4 +123,4 @@ class NNNI(InterpolationTensor):
                     area = r.geometry.intersection(synthetic_cell).area
                     if area > 0.0:
                         s = self._samples.index.get_loc(id)
-                        self._tensor[int(p['y']), int(p['x']), s] = area / synthetic_cell_area
+                        yield (int(p['y']), int(p['x']), s, area / synthetic_cell_area)
