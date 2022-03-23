@@ -17,10 +17,10 @@
 # along with trhis software. If not, see <http://www.gnu.org/licenses/gpl.html>.
 
 # old functional interface
-from .nnni import nnn_voronoi, nnn_geometry, nnn_masked_grid, nnn_tensor, apply_tensor, natural_nearest_neighbour
+#from .nnni import nnn_voronoi, nnn_geometry, nnn_masked_grid, nnn_tensor, apply_tensor, natural_nearest_neighbour
 
 # while debugging, also export the internal implementations
-from .nnni import nnn_tensor_seq, nnn_tensor_par, nnn_tensor_par_worker
+#from .nnni import nnn_tensor_seq, nnn_tensor_par, nnn_tensor_par_worker
 
 # new class interface
 from .tensor import InterpolationTensor
