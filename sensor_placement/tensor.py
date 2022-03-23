@@ -242,6 +242,7 @@ class InterpolationTensor:
                     grid[i, j] = numpy.dot(self._tensor[i, j, nz], samples[nz])
 
         if clipped:
+            # clip the grid to the boundary using a masked array
             mask = numpy.empty(grid.shape)
             for i in range(grid.shape[0]):
                 for j in range(grid.shape[1]):
