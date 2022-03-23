@@ -30,12 +30,16 @@ class NNNI(InterpolationTensor):
     def tensor(self):
         '''Construct the natural nearest neighbour interpolation tensor from a
         set of samples taken within a boundary and sampled at the given
-        grid of interpolation points.
-
-        :returns: a tensor'''
+        grid of interpolation points.'''
 
         # construct the tensor
-        self._tensor = numpy.zeros((max(self._grid.y) + 1, max(self._grid.x) + 1, len(self._samples)))
+        self._tensor = numpy.zeros((max(self._grid['y']) + 1, max(self._grid['x']) + 1, len(self._samples)))
+
+        # compute the weights for all cells
+        self.weightsFor()
+
+    def weightsFor(self, real_cells = None):
+        '''Compute the weights for all points in the given cells (all by default).'''
 
         # group the grid points by the real cell they lie within
         grid_grouped = self._grid.groupby('cell').groups
@@ -45,7 +49,9 @@ class NNNI(InterpolationTensor):
             del grid_grouped[-1]
 
         # construct the weights
-        for real_cell in grid_grouped.keys():
+        if real_cells is None:
+            real_cells = grid_grouped.keys()
+        for real_cell in real_cells:
             # extract the neighbourhood of Voronoi cells,
             # the only ones that the cell around this sample point
             # can intersect and so the only computation we need to do
@@ -67,5 +73,3 @@ class NNNI(InterpolationTensor):
                     if area > 0.0:
                         s = self._samples.index.get_loc(id)
                         self._tensor[int(p['y']), int(p['x']), s] = area / synthetic_cell_area
-
-        return self._tensor
