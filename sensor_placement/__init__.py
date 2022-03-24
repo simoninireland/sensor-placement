@@ -22,6 +22,9 @@
 # while debugging, also export the internal implementations
 #from .nnni import nnn_tensor_seq, nnn_tensor_par, nnn_tensor_par_worker
 
-# new class interface
+# Library-specific logger name
+Logger = 'sensor_placement'
+
+# New class interface
 from .tensor import InterpolationTensor
 from .nnni_tensor import NNNI

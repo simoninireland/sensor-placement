@@ -18,10 +18,14 @@
 # You should have received a copy of the GNU General Public License
 # along with this software. If not, see <http://www.gnu.org/licenses/gpl.html>.
 
+import logging
 import numpy
 from joblib import Parallel, delayed
 from multiprocessing import cpu_count
-from sensor_placement import InterpolationTensor
+from sensor_placement import Logger, InterpolationTensor
+
+
+logger = logging.getLogger(Logger)
 
 
 class NNNI(InterpolationTensor):
@@ -51,6 +55,7 @@ class NNNI(InterpolationTensor):
             # use the number of cores requested, up to the maximum available,
             # redcuced if there are only a few cells
             self._cores = min(cores, len(points), cpu_count())
+        logger.info(f'NNI tensor initialised to use {cores} cores')
 
         # now initialise, using the right number of cores for the computation
         super().__init__(points, boundary, xs, ys)
@@ -58,6 +63,7 @@ class NNNI(InterpolationTensor):
     def tensor(self):
         # construct the tensor
         self._tensor = numpy.zeros((max(self._grid['y']) + 1, max(self._grid['x']) + 1, len(self._samples)))
+        logging.debug('Tensor created with shape {s}'.format(s=self._tensor.shape))
 
         # populate the tensor
         if self._cores == 1:
@@ -103,6 +109,8 @@ class NNNI(InterpolationTensor):
         if real_cells is None:
             real_cells = grid_grouped.keys()
         for real_cell in real_cells:
+            logger.debug(f'Computing weights for cell {real_call}')
+
             # extract the neighbourhood of Voronoi cells,
             # the only ones that the cell around this sample point
             # can intersect and so the only computation we need to do
