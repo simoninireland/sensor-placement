@@ -20,6 +20,7 @@
 
 import logging
 import numpy
+from datetime import datetime, timedelta
 from joblib import Parallel, delayed
 from multiprocessing import cpu_count
 from sensor_placement import Logger, InterpolationTensor
@@ -60,25 +61,29 @@ class NNNI(InterpolationTensor):
         # now initialise, using the right number of cores for the computation
         super().__init__(points, boundary, xs, ys)
 
-    def tensor(self):
+    def buildTensor(self):
         # construct the tensor
         self._tensor = numpy.zeros((max(self._grid['y']) + 1, max(self._grid['x']) + 1, len(self._samples)))
         logging.debug('Tensor created with shape {s}'.format(s=self._tensor.shape))
 
         # populate the tensor
+        now = datetime.now()
         if self._cores == 1:
-            self.tensorSeq()
+            self._tensorSeq()
         else:
-            self.tensorPar()
+            self._tensorPar()
+        then = datetime.now()
+        delta = then - now
+        logging.debug(f'Computing tensor took {delta}')
 
-    def tensorSeq(self):
+    def _tensorSeq(self):
         '''Construct the natural nearest neighbour interpolation tensor from a
         set of samples taken within a boundary and sampled at the given
         grid of interpolation points.'''
         for (y, x, s, v) in self.iterateWeightsFor():
             self._tensor[y, x, s] = v
 
-    def tensorPar(self, cores = 1):
+    def _tensorPar(self, cores = 1):
         '''Construct the natural nearest neighbour interpolation tensor from a
         set of samples taken within a boundary and sampled at the given
         grid of interpolation points.'''
@@ -109,7 +114,7 @@ class NNNI(InterpolationTensor):
         if real_cells is None:
             real_cells = grid_grouped.keys()
         for real_cell in real_cells:
-            logger.debug(f'Computing weights for cell {real_call}')
+            logger.debug(f'Computing weights for cell {real_cell}')
 
             # extract the neighbourhood of Voronoi cells,
             # the only ones that the cell around this sample point

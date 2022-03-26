@@ -18,12 +18,17 @@
 # You should have received a copy of the GNU General Public License
 # along with this software. If not, see <http://www.gnu.org/licenses/gpl.html>.
 
+import logging
 from itertools import product
 import numpy
 from shapely.geometry import Point, MultiPoint
 from shapely.ops import unary_union, voronoi_diagram
 from pandas import Series
 from geopandas import GeoDataFrame
+from sensor_placement import Logger
+
+
+logger = logging.getLogger(Logger)
 
 
 class InterpolationTensor:
@@ -44,14 +49,14 @@ class InterpolationTensor:
         self._tensor = None
 
         # construct the elements of the tensor
-        self.voronoi()
-        self.geometry()
-        self.tensor()
+        self.buildVoronoi()
+        self.buildGeometry()
+        self.buildTensor()
 
 
     # ---------- Voronoi cell construction ----------
 
-    def voronoi(self):
+    def buildVoronoi(self):
         '''Construct a table of natural nearest neighbour Voronoi cells
         and their adjacencies based on a set of sample points and a boundary.
         '''
@@ -112,7 +117,7 @@ class InterpolationTensor:
 
     # ---------- Grid construction----------
 
-    def geometry(self):
+    def buildGeometry(self):
         '''Construct the grid of interpolation points from a set of samples,
         a set of their Voronoi cells, and the sample point axes.
         '''
@@ -138,8 +143,8 @@ class InterpolationTensor:
 
     # ---------- Tensor construction----------
 
-    def tensor(self):
-        raise NotImplementedError('tensor')
+    def buildTensor(self):
+        raise NotImplementedError('buildTensor')
 
     def iterateWeightsFor(self, real_cells = None):
         raise NotImplementedError('weightsFor')
@@ -149,6 +154,7 @@ class InterpolationTensor:
 
     def removeSample(self, s):
         '''Remove sample from the tensor.'''
+        logging.debug(f'Removing cell {s}')
 
         # retrieve the neighbourhood of the sample cell, not
         # including the cell itself, and the boundary
@@ -190,6 +196,22 @@ class InterpolationTensor:
         else:
             raise AttributeError(attr)
 
+    def samplePointsDataFrame(self):
+        '''Return the sample points as a DataFrame.'''
+        return self._samples
+
+    def cellsDataFrame(self):
+        '''Return the Voronoi cells as a DataFrame.'''
+        return self._voronoi
+
+    def gridDataFrame(self):
+        '''Return the interpolation grid as a DataFrame.'''
+        return self._grid
+
+    def tensor(self):
+        '''Return the tensor.'''
+        return self._tensor
+
     def samplePoints(self):
         '''Return the sample points.'''
         return list(self._samples['geometry'])
@@ -197,6 +219,14 @@ class InterpolationTensor:
     def cells(self):
         '''Return the Voronoi cells in sample point order.'''
         return list(self._voronoi['geometry'])
+
+    def ys(self):
+        '''Return the y-axis (northing) interpolation points.'''
+        return self._ys
+
+    def xs(self):
+        '''Return the x-axis (easting) interpolation points.'''
+        return self._xs
 
     def weights(self, y, x):
         '''Return a vector of tensor weights at the given point.'''
