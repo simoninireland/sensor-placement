@@ -19,6 +19,7 @@
 # along with this software. If not, see <http://www.gnu.org/licenses/gpl.html>.
 
 import unittest
+import os
 import logging
 from tempfile import NamedTemporaryFile
 import numpy
@@ -34,16 +35,16 @@ class IOTest(unittest.TestCase):
 
     def setUp( self ):
         '''Set up with a temporary file.'''
-        #tf = NamedTemporaryFile()
-        #tf.close()
-        #self._fn = tf.name
-        self._fn = 'test.nc'
+        tf = NamedTemporaryFile()
+        tf.close()
+        self._fn = tf.name
+        #self._fn = 'test.nc'
 
     def tearDown( self ):
         '''Delete the temporary file.'''
         try:
-            #os.remove(self._fn)
-            pass
+            os.remove(self._fn)
+            #pass
         except OSError:
             pass
 
