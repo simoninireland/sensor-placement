@@ -20,6 +20,7 @@
 
 from datetime import date, datetime
 from netCDF4 import Dataset
+from geopandas import GeoDataFrame
 from pyproj import CRS, Transformer
 from shapely.geometry import Point
 import numpy
@@ -92,7 +93,7 @@ def toNetCDF(fn,
     x_var = root.createVariable('x', 'f4', (station_dim.name))
     x_var.units = 'Easting (m east of base of UK national grid)'
     y_var = root.createVariable('y', 'f4', (station_dim.name))
-    y_var.units = 'North (m north of base of UK national grid)'
+    y_var.units = 'Northing (m north of base of UK national grid)'
     lat_var = root.createVariable('lat', 'f4', (station_dim.name))
     lat_var.units = 'Latitude (degrees)'
     lon_var = root.createVariable('long', 'f4', (station_dim.name))
@@ -140,19 +141,13 @@ def stations(nc):
         nc = Dataset(nc)
 
     # create a DataFrame for the dataset
-    stations = GeoDataFrame(columns=['name', 'id',
-                                     'x', 'y', 'longitude', 'latitude',
-                                     'geometry'])
-
-    # populate from the dataset
-    for i in range(len(nc['station'])):
-        stations.loc[i] = {'id': int(nc['station'][i]),
-                           'name': nc['name'][i],
-                           'x': nc['x'][i],
-                           'y': nc['y'][i],
-                           'longitude': nc['long'][i],
-                           'latitude': nc['lat'][i],
-                           'geometry': Point(nc['long'][i], nc['lat'][i])}
+    stations = GeoDataFrame({'id': numpy.asarray(nc['station']).astype(int),
+                             'name':numpy.asarray(nc['name']),
+                             'east':numpy.asarray(nc['x']).astype(int),
+                             'north':numpy.asarray(nc['y']).astype(int),
+                             'longitude':numpy.asarray(nc['long']).astype(float),
+                             'latitude': numpy.asarray(nc['lat']).astype(float)})
+    stations['geometry'] = stations.apply(lambda r: Point(r['longitude'], r['latitude']), axis=1)
 
     # use the station id as the DataFrame index
     stations.set_index('id', inplace=True)
