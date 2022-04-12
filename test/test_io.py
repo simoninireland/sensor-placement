@@ -28,7 +28,7 @@ from geopandas import GeoDataFrame
 from shapely.geometry import Point, Polygon
 
 
-logging.basicConfig(level=logging.DEBUG)
+#logging.basicConfig(level=logging.DEBUG)
 
 
 class IOTest(unittest.TestCase):
