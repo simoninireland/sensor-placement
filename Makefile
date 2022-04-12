@@ -24,7 +24,18 @@ SOURCE = \
 	sensor_placement/data/raw.py \
 	sensor_placement/data/uk_epa.py \
 	sensor_placement/data/sepa.py \
-	sensor_placement/data/ceda.py
+	sensor_placement/data/ceda.py \
+	sensor_palcement/folium/__init__.py \
+	sensor_palcement/folium/style.py \
+	sensor_palcement/folium/interpolation.py \
+	sensor_palcement/folium/samples.py \
+	sensor_placement/matplotlib/__init__.py \
+	sensor_placement/matplotlib/tiles.py
+SOURCES_TESTS = \
+	test/__init__.py \
+	test/test_io.py \
+	test/test_nnni.py
+TESTSUITE = test
 
 # Utilities
 UTILS = utils/
@@ -125,6 +136,7 @@ BOOK_BUILD_DIR = $(BOOK_DIR)/$(BUILD_DIR)
 
 # Commands
 RUN_SERVER = PYTHONPATH=. $(JUPYTER) notebook
+RUN_TESTS = $(PYTHON) -m unittest discover
 CREATE_BOOK = $(JUPYTER_BOOK) create $(BOOK_DIR)
 BUILD_BOOK = $(JUPYTER_BOOK) build $(BOOK_DIR)
 UPLOAD_BOOK = $(GHP_IMPORT) -n -p -f $(BOOK_BUILD_DIR)/html
@@ -172,6 +184,10 @@ $(DATASETS_DIR)/$(SEPA_MONTHLY_EXAMPLE):
 live: env
 	$(ACTIVATE) && $(RUN_SERVER)
 
+# Run tests for all versions of Python we're interested in
+test: env Makefile
+	$(ACTIVATE) && $(RUN_TESTS)
+
 # Build a development venv
 .PHONY: env
 env: $(VENV)
@@ -200,8 +216,9 @@ Editing:
 Maintenance:
    make env          create a virtual environment
    make datasets     download all the datasets (long!)
+   make test         run the unit test suite
    make clean        clean-up the build
-   make reallyclean  delete the venv as well
+   make reallyclean  delete the venv and all the datasets as well
 
 endef
 export HELP_MESSAGE
