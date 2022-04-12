@@ -44,7 +44,7 @@ class NNNI(InterpolationTensor):
 
     '''
 
-    def __init__(self, points, boundary, xs, ys, cores = 1):
+    def __init__(self, points, boundary, ys, xs, voronoi = None, grid = None, data = None, cores = 1):
         # compute the nunber of cores to use when computing the tensor initially
         if cores == 0:
             # use all available or the number of cells, whichever is smaller
@@ -56,15 +56,15 @@ class NNNI(InterpolationTensor):
             # use the number of cores requested, up to the maximum available,
             # redcuced if there are only a few cells
             self._cores = min(cores, len(points), cpu_count())
-        logger.info(f'NNI tensor initialised to use {cores} cores')
+        logger.info('NNI tensor initialised to use {cores} cores'.format(cores=self._cores))
 
-        # now initialise, using the right number of cores for the computation
-        super().__init__(points, boundary, xs, ys)
+        # now initialise
+        super().__init__(points, boundary, ys, xs, voronoi=voronoi, grid=grid, data=data)
 
     def buildTensor(self):
         # construct the tensor
         self._tensor = numpy.zeros((max(self._grid['y']) + 1, max(self._grid['x']) + 1, len(self._samples)))
-        logging.debug('Tensor created with shape {s}'.format(s=self._tensor.shape))
+        logger.debug('Tensor created with shape {s}'.format(s=self._tensor.shape))
 
         # populate the tensor
         now = datetime.now()
@@ -74,7 +74,7 @@ class NNNI(InterpolationTensor):
             self._tensorPar()
         then = datetime.now()
         delta = then - now
-        logging.debug(f'Computing tensor took {delta}')
+        logger.debug(f'Computing tensor took {delta}')
 
     def _tensorSeq(self):
         '''Construct the natural nearest neighbour interpolation tensor from a

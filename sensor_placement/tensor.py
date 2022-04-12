@@ -20,11 +20,13 @@
 
 import logging
 from itertools import product
+from datetime import date, datetime
 import numpy
-from shapely.geometry import Point, MultiPoint
+from shapely.geometry import Point, MultiPoint, Polygon
 from shapely.ops import unary_union, voronoi_diagram
 from pandas import Series
 from geopandas import GeoDataFrame
+from netCDF4 import Dataset
 from sensor_placement import Logger
 
 
@@ -39,19 +41,23 @@ class InterpolationTensor:
     on the y-axis.
     '''
 
-    def __init__(self, points, boundary, ys, xs):
+    def __init__(self, points, boundary, ys, xs, voronoi = None, grid = None, data = None):
         self._samples = points.copy()   # we'll change this if editing the tensor
         self._boundary = boundary
         self._voronoi = None
         self._ys = ys
         self._xs = xs
-        self._grid = None
-        self._tensor = None
+        self._voronoi = voronoi
+        self._grid = grid
+        self._tensor = data
 
         # construct the elements of the tensor
-        self.buildVoronoi()
-        self.buildGeometry()
-        self.buildTensor()
+        if self._voronoi is None:
+            self.buildVoronoi()
+        if self._grid is None:
+            self.buildGeometry()
+        if self._tensor is None:
+            self.buildTensor()
 
 
     # ---------- Voronoi cell construction ----------
@@ -66,6 +72,7 @@ class InterpolationTensor:
             raise ValueError('At least one point lies on or outside the boundary')
 
         # create the Voronoi cells
+        logger.debug('Computing Voronoi diagram')
         voronoi_cells = self.voronoiCells(list(self._samples.geometry), self._boundary)
         self._voronoi = GeoDataFrame({'centre': self._samples.geometry,
                                       'id': self._samples.index,
@@ -123,12 +130,13 @@ class InterpolationTensor:
         '''
 
         # build the grid
+        logger.debug('Computing grid')
         self._grid = GeoDataFrame({'x': [i for l in [[j] * len(self._ys) for j in range(len(self._xs))] for i in l],
                                    'y': list(range(len(list(self._ys)))) * len(self._xs),
                                    'geometry': [Point(x, y) for (x, y) in product(self._xs, self._ys)]})
 
         # add the cell containing each point
-        # sd: this needs to be a lot faster
+        # sd: this needs to be a lot faster -- use Series.apply()?
         cells = []
         for _, pt in self._grid.iterrows():
             cells.append(self.cellContaining(pt.geometry))
@@ -282,3 +290,108 @@ class InterpolationTensor:
             grid = numpy.ma.masked_where(mask, grid, copy=False)
 
         return grid
+
+
+    # ---------- I/O to and from NetCDF ----------
+
+    def save(self, fn):
+        '''Save the tensor to the given file in NetCDF format.
+
+        :param fn: the filename'''
+
+        # create the dataset
+        logger.debug(f'Saving tensor to {fn}')
+        root = Dataset(fn, 'w', format='NETCDF4')
+
+        # standard metadata
+        now = datetime.now().isoformat()
+        root.history = f'Saved {now}'
+
+        # turn the boundary into a list of points, leaving off the last one
+        # that simply suplicates the first
+        b = self._boundary.exterior.coords[:-1]
+
+        # turn the grid into an array of cell (sample) indices
+        g = numpy.full((len(self._ys), len(self._xs)), -1)
+        for _, r in self._grid.iterrows():
+            g[r['y'], r['x']] = r['cell']
+
+        # dimensions
+        sample_dim = root.createDimension('sample', len(self._samples))
+        boundary_dim = root.createDimension('boundary', len(b))
+        grid_x_dim = root.createDimension('grid_x', len(self._xs))
+        grid_y_dim = root.createDimension('grid_y', len(self._ys))
+        # lat_dim = root.createDimension('lat', len(lat_station))
+        # lon_dim = root.createDimension('long', len(lon_station))
+
+        # variables
+        boundary_x_var = root.createVariable('boundary_x', 'f4', (boundary_dim.name))
+        boundary_x_var.units = 'Boundary longitude (degrees)'
+        boundary_y_var = root.createVariable('boundary_y', 'f4', (boundary_dim.name))
+        boundary_y_var.units = 'Boundary latitude (degrees)'
+        sample_x_var = root.createVariable('sample_x', 'f4', (sample_dim.name))
+        sample_x_var.units = 'Sample latitude (degrees)'
+        sample_y_var = root.createVariable('sample_y', 'f4', (sample_dim.name))
+        sample_y_var.units = 'Sample longitude (degrees)'
+        grid_x_var = root.createVariable('grid_x', 'f4', (grid_x_dim.name))
+        grid_x_var.units = 'Grid easting (m east of base of UK national grid)'
+        grid_y_var = root.createVariable('grid_y', 'f4', (grid_y_dim.name))
+        grid_y_var.units = 'Grid northing (m north of base of UK national grid)'
+        # lat_var = root.createVariable('lat', 'f4', (station_dim.name))
+        # lat_var.units = 'Latitude (degrees)'
+        # lon_var = root.createVariable('long', 'f4', (station_dim.name))
+        # lon_var.units = 'Longitude (degree)'
+        grid_var = root.createVariable('grid', 'i4', (grid_y_dim.name, grid_x_dim.name))
+        tensor_var = root.createVariable('tensor', 'f4', (grid_y_dim.name, grid_x_dim.name, sample_dim.name))
+        tensor_var.units = 'Weight assigned to each sample in interpolating point (float)'
+
+        # populate the dataset
+        boundary_y_var[:] = list(map(lambda p: p[1], b))
+        boundary_x_var[:] = list(map(lambda p: p[0], b))
+        sample_y_var[:] = list(self._samples.geometry.apply(lambda p: list(p.coords)[0][1]))
+        sample_x_var[:] = list(self._samples.geometry.apply(lambda p: list(p.coords)[0][0]))
+        grid_y_var[:] = self._ys
+        grid_x_var[:] = self._xs
+        grid_var[:, :] = g
+        tensor_var[:, :, :] = self._tensor
+
+        # close the file
+        root.close()
+
+    @classmethod
+    def load(cls, fn, **kwds):
+        '''Load a tensor as an instance of the class from the given NetCDF file.
+        Any ketyword arguments are passed to the constructor for cls.
+
+        :param fn: filename
+        :returns: the tensor'''
+
+        # open the dataset
+        cn = cls.__name__
+        logger.debug(f'Loading tensor from {fn} (class {cn})')
+        root = Dataset(fn, 'r', format='NETCDF4')
+
+        # read the underlying sample points and boundary
+        samplePoints = list(map(lambda p: Point(p[1], p[0]), zip(root['sample_x'], root['sample_y'])))
+        df_points = GeoDataFrame({'geometry': samplePoints})
+        boundaryPoints = list(map(lambda p: Point(p[1], p[0]), zip(root['boundary_x'], root['boundary_y'])))
+        boundaryPoints += [boundaryPoints[-1]]   # close the sequence
+        boundary = Polygon(boundaryPoints)
+
+        # read the grid structure
+        xs = numpy.asarray(root['grid_x']).astype(float)
+        ys = numpy.asarray(root['grid_y']).astype(float)
+        g = numpy.asarray(root['grid']).astype(int)
+        df_grid = GeoDataFrame({'x': [i for l in [[j] * len(ys) for j in range(len(xs))] for i in l],
+                                'y': list(range(len(list(ys)))) * len(xs),
+                                'geometry': [Point(x, y) for (x, y) in product(xs, ys)],
+                                'cell': [g[y, x] for (x, y) in product(range(len(xs)), range(len(ys)))]})
+
+        # create the tensor
+        t = cls(df_points, boundary,
+                ys, xs,
+                grid=df_grid,
+                data=numpy.asarray(root['tensor']).astype(float),
+                **kwds)
+
+        return t
