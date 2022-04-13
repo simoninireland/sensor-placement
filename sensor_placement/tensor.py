@@ -218,6 +218,10 @@ class InterpolationTensor:
         '''Return the interpolation grid as a DataFrame.'''
         return self._grid
 
+    def boundaru(self):
+        '''Return the boundary.'''
+        return self._boundary
+
     def tensor(self):
         '''Return the tensor.'''
         return self._tensor
