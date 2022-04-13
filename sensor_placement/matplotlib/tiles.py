@@ -51,7 +51,7 @@ def num2deg(xtile, ytile, zoom):
     return (lat_deg, lon_deg)
 
 
-def tile(lat_deg, lon_deg, delta_lat,  delta_long, zoom):
+def tile(lat_deg, lon_deg, delta_lat, delta_long, zoom):
     xmin, ymax = deg2num(lat_deg, lon_deg, zoom)
     xmax, ymin = deg2num(lat_deg + delta_lat, lon_deg + delta_long, zoom)
 
