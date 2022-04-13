@@ -130,7 +130,7 @@ def uk_epa(start, end, fn = None):
                 logging.debug('No datestamp on reading -- ignored')
                 continue
             elif 'value' not in m.keys():
-                prilogging.debugnt('No value for reading')
+                logging.debug('No value for reading')
                 continue
             elif isinstance(m['value'], list):
                 logging.debug('List-valued value? ({l}) -- ignored'.format(l=m['value']))
