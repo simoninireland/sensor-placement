@@ -28,7 +28,8 @@ from PIL import Image
 
 
 # Open Street Map endpoint
-osm = 'http://a.tile.openstreetmap.org/{0}/{1}/{2}.png'
+#osm = 'http://a.tile.openstreetmap.org/{0}/{1}/{2}.png'
+osm = 'http://tile.openstreetmap.org/{0}/{1}/{2}.png'
 
 
 # Persistent session
