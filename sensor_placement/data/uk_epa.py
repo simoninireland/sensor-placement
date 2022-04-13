@@ -21,15 +21,21 @@
 # This code uses Environment Agency rainfall data from the real-time data API (Beta)
 # See https://environment.data.gov.uk/flood-monitoring/doc/rainfall
 
+import logging
 import requests
 from datetime import date, datetime, timedelta
 from dateparser import parse
 import numpy
 from sensor_placement.data import toNetCDF, days_base, proj
+from sensor_placement import Logger
+
+
+logger = logging.getLogger(Logger)
 
 
 # Root URL for the API
 root_url = 'http://environment.data.gov.uk/flood-monitoring'
+
 
 def uk_epa(start, end, fn = None):
     '''Retrieve EPA daily observations betweeen the two date ranges,
@@ -43,6 +49,7 @@ def uk_epa(start, end, fn = None):
 
     # grab the current list of stations
     url = f'{root_url}/id/stations?parameter=rainfall'
+    logging.debug(f'Retrieving list of stations from {url}')
     req = session.get(url)
     if req.status_code != 200:
         raise Exception('Can\'t get stations: {e}'.format(e=req.status_code))
@@ -66,12 +73,12 @@ def uk_epa(start, end, fn = None):
                 measure = m['@id']
                 break
         if measure is None:
-            print('No rainfall measurements at {label}')
+            logging.debug(f'No rainfall measurements at {label} -- ignored')
             continue
 
         # get UK grid locations
         if 'lat' not in s.keys() or 'lat' not in s.keys():
-            print(f'No location information for {label}')
+            logging.debug(f'No location information for {label} -- ignored')
             continue
         lat, lon = s['lat'], s['long']
         east, north = proj.transform(lat, lon)
@@ -108,6 +115,7 @@ def uk_epa(start, end, fn = None):
         label = latlons[id][0]
         measure = latlons[id][5]
         url = f'{measure}/readings?startdate={startDate}&enddate={endDate}'
+        logging.debug(f'Retrieving readings for station {id} from {url}')
         req = session.get(url)
         if req.status_code != 200:
             raise Exception('Can\'t get measure {m} at {l}: {e}'.format(m=measure,
@@ -116,35 +124,33 @@ def uk_epa(start, end, fn = None):
         rs = req.json()
 
         # add to array against the appropriate day
-        print('.', end='', flush=True)
         for m in rs['items']:
             # sometimes there's malformed data
             if 'dateTime' not in m.keys():
-                print('No datestamp on reading (ignored)')
+                logging.debug('No datestamp on reading -- ignored')
                 continue
             elif 'value' not in m.keys():
-                print('No value for reading (ignored)')
+                prilogging.debugnt('No value for reading')
                 continue
             elif isinstance(m['value'], list):
-                print('List-valued value? ({l})'.format(l=m['value']))
+                logging.debug('List-valued value? ({l}) -- ignored'.format(l=m['value']))
                 continue
 
             # extract the date
             d = parse(m['dateTime']).date()
             if d is None:
-                print('Can\'t parse date {d} at {l}'.format(d=m['dateTime'], l=label))
+                logging.debug('Can\'t parse date {d} at {l}'.format(d=m['dateTime'], l=label))
                 continue
             elif d < sd:
-                print('Date {d} at {l} comes before start'.format(d=m['dateTime'], l=label))
+                logging.debug('Date {d} at {l} comes before start'.format(d=m['dateTime'], l=label))
                 continue
             elif d > ed:
-                print('Date {d} at {l} comes after end'.format(d=m['dateTime'], l=label))
+                logging.debug('Date {d} at {l} comes after end'.format(d=m['dateTime'], l=label))
                 continue
 
             # add to day total
             day = (d - sd).days
             rainfall[day, station] += float(m['value'])
-    print('', flush=True)
 
     # create the file
     return toNetCDF(fn,

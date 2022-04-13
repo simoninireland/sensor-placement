@@ -20,14 +20,19 @@
 
 # See https://help.ceda.ac.uk/article/4442-ceda-opendap-scripted-interactions
 
-import requests
+import logging
 from datetime import date, datetime, timedelta
 from dateparser import parse
 from os.path import exists
 from io import StringIO
+import requests
 import csv
 import numpy
 from sensor_placement.data import toNetCDF, days_base, proj
+from sensor_placement import Logger
+
+
+logger = logging.getLogger(Logger)
 
 
 # Root URL, filename pattern, and certificate for the API
@@ -55,6 +60,7 @@ def ceda_midas(year, fn = None, cert = None):
 
     # grab the current list of stations
     url = f'{root_url}/midas-open_uk-daily-rain-obs_dv-202107_station-metadata.csv'
+    logging.debug(f'Retrieving rainfall from {url}')
     req = session.get(url)
     if req.status_code != 200:
         raise Exception('Can\'t get stations: {e}'.format(e=req.status_code))
@@ -86,7 +92,7 @@ def ceda_midas(year, fn = None, cert = None):
 
                 # make sure the station has data in the year we're looking for
                 if not (year >= int(row[7]) and year <= int(row[8])):
-                    print(f'No records for {year} at {label}')
+                    logging.debug(f'No records for {year} at {label}')
                     continue
 
                 # map station id and filename
@@ -128,15 +134,15 @@ def ceda_midas(year, fn = None, cert = None):
         id = id_station[station]
         label = latlons[id][0]
         url = latlons[id][5]
+        logging.debug(f'Retrieving readings for station {id} ({label}) from {url}')
         req = session.get(url)
         if req.status_code != 200:
-            print('Can\'t get data for {l} from {url}: {e}'.format(url=url,
-                                                                   l=label,
-                                                                   e=req.status_code))
+            logging.debug('Can\'t get data for {l} from {url}: {e}'.format(url=url,
+                                                                           l=label,
+                                                                           e=req.status_code))
             continue
 
         # read the data
-        print(label)
         with StringIO(req.text) as fh:
             r = csv.reader(fh, delimiter=',')
             reading_measurements = False

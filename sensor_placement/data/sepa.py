@@ -20,11 +20,16 @@
 
 # See https://www2.sepa.org.uk/rainfall/DataDownload
 
-import requests
+import logging
 from datetime import date, datetime, timedelta
 from dateparser import parse
+import requests
 import numpy
 from sensor_placement.data import toNetCDF, days_base, proj
+from sensor_placement import Logger
+
+
+logger = logging.getLogger(Logger)
 
 
 # Root URL for the API and the monthly endpoint
@@ -48,6 +53,7 @@ def sepa(year, fn = None):
 
     # grab the current list of stations
     url = f'{root_url}/api/Stations?json=true'
+    logging.debug(f'Retrieving list of stations from {url}')
     req = session.get(url)
     if req.status_code != 200:
         raise Exception('Can\'t get stations: {e}'.format(e=req.status_code))
@@ -94,6 +100,7 @@ def sepa(year, fn = None):
         id = id_station[station]
         label = latlons[id][0]
         url = f'{monthly_url}/{id}?all=true'
+        logging.debug(f'Retrieving readings for station {id} from {url}')
         req = session.get(url)
         if req.status_code != 200:
             raise Exception('Can\'t get data for {l} from {url}: {e}'.format(url=url,
@@ -107,16 +114,14 @@ def sepa(year, fn = None):
             monthlies[tv['Timestamp']] = tv['Value']
 
         # extract the year's values
-        print('.', end='', flush=True)
         for m in range(len(monthnames)):
             mn = monthnames[m]
             timestamp = f'{mn} {year}'
             if timestamp in monthlies.keys():
                 rainfall[m, station] = monthlies[timestamp]
             else:
-                print(f'No entry for {timestamp} at station {id}')
+                logging.debug(f'No entry for {timestamp} at station {id}')
                 continue
-    print('', flush=True)
 
     # create the file
     return toNetCDF(fn,
