@@ -27,14 +27,15 @@ def heatmap(tensor, grid, name=None, min_opacity=0.01, radius=40, blur=40, gradi
     '''Return interpolated rainfall data as a heatmap.'''
 
     # wrangle the data into heatmap form
-    ys, xs = tensor.ys(), tensor.xs()
+    xs, ys = tensor.xs(), tensor.ys()
     rainpoints = []
     mask = grid.mask
     shape = grid.shape
     for i in range(shape[0]):
         for j in range(shape[1]):
             if not mask[i, j]:
-                rainpoints.append([ys[i], xs[j], grid[i, j]])
+                # heat map needs points in (lat, lon)
+                rainpoints.append([ys[j], xs[i], grid[i, j]])
 
     # create the heatmap
     heatmap = folium.plugins.HeatMap(data=rainpoints,

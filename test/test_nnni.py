@@ -42,9 +42,9 @@ class NNNITest(unittest.TestCase):
         xs = numpy.linspace(0.0, 1.0, num=10)
         ys = numpy.linspace(0.0, 1.0, num=20)
 
-        t = NNNI(df_points, boundary, ys, xs)
+        t = NNNI(df_points, boundary, xs, ys)
 
-        self.assertEqual(t.shape, (20, 10, len(df_points)))
+        self.assertEqual(t.shape, (10, 20, len(df_points)))
         self.assertEqual(len(t.weights(0, 0)), len(df_points))
         self.assertEqual(t.shape, t._tensor.shape)
         self.assertEqual(t._grid.shape, (len(xs) * len(ys), len(df_points)))

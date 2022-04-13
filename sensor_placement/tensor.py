@@ -36,17 +36,15 @@ logger = logging.getLogger(Logger)
 class InterpolationTensor:
     '''The abstract class of interpolation tensors.
 
-    The tensor is stored as a three-dimensional array with axes (lat, lon, sample).
-    This translates to the (y, x, sample): the rows of the tensor are the points
-    on the y-axis.
+    The tensor is stored as a three-dimensional array with axes (lon, lat, sample).
     '''
 
-    def __init__(self, points, boundary, ys, xs, voronoi = None, grid = None, data = None):
-        self._samples = points.copy()   # we'll change this if editing the tensor
+    def __init__(self, points, boundary, xs, ys, voronoi = None, grid = None, data = None):
+        self._samples = points.copy()   # we'll change this if we edit the tensor
         self._boundary = boundary
         self._voronoi = None
-        self._ys = ys
         self._xs = xs
+        self._ys = ys
         self._voronoi = voronoi
         self._grid = grid
         self._tensor = data
@@ -129,6 +127,10 @@ class InterpolationTensor:
         a set of their Voronoi cells, and the sample point axes.
         '''
 
+        # The grid is held as a DataFrame rather than as an array to make it
+        # easier to edit. This might not be a good enough reason, and holding
+        # it as an array might make more sense (and be more compact).
+
         # build the grid
         logger.debug('Computing grid')
         self._grid = GeoDataFrame({'x': [i for l in [[j] * len(self._ys) for j in range(len(self._xs))] for i in l],
@@ -192,8 +194,8 @@ class InterpolationTensor:
         self._grid.loc[pts.index, 'cell'] = cells
 
         # re-compute the weights for all these points
-        for (y, x, s, v) in self.iterateWeightsFor(pre_neighbours):
-            self._tensor[y, x, s] = v
+        for (x, y, s, v) in self.iterateWeightsFor(pre_neighbours):
+            self._tensor[x, y, s] = v
 
 
     # ---------- Access ----------
@@ -236,9 +238,9 @@ class InterpolationTensor:
         '''Return the x-axis (easting) interpolation points.'''
         return self._xs
 
-    def weights(self, y, x):
+    def weights(self, x, y):
         '''Return a vector of tensor weights at the given point.'''
-        return self._tensor[y, x, :]
+        return self._tensor[x, y, :]
 
 
     # ---------- Applying the tensor ----------
@@ -285,7 +287,7 @@ class InterpolationTensor:
             mask = numpy.empty(grid.shape)
             for i in range(grid.shape[0]):
                 for j in range(grid.shape[1]):
-                    y, x = self._ys[i], self._xs[j]
+                    x, y = self._xs[i], self._ys[j]
                     mask[i, j] = not self._boundary.contains(Point(x, y))
             grid = numpy.ma.masked_where(mask, grid, copy=False)
 
@@ -312,9 +314,9 @@ class InterpolationTensor:
         b = self._boundary.exterior.coords[:-1]
 
         # turn the grid into an array of cell (sample) indices
-        g = numpy.full((len(self._ys), len(self._xs)), -1)
+        g = numpy.full((len(self._xs), len(self._ys)), -1)
         for _, r in self._grid.iterrows():
-            g[r['y'], r['x']] = r['cell']
+            g[r['x'], r['y']] = r['cell']
 
         # dimensions
         sample_dim = root.createDimension('sample', len(self._samples))
@@ -341,17 +343,17 @@ class InterpolationTensor:
         # lat_var.units = 'Latitude (degrees)'
         # lon_var = root.createVariable('long', 'f4', (station_dim.name))
         # lon_var.units = 'Longitude (degree)'
-        grid_var = root.createVariable('grid', 'i4', (grid_y_dim.name, grid_x_dim.name))
-        tensor_var = root.createVariable('tensor', 'f4', (grid_y_dim.name, grid_x_dim.name, sample_dim.name))
+        grid_var = root.createVariable('grid', 'i4', (grid_x_dim.name, grid_y_dim.name))
+        tensor_var = root.createVariable('tensor', 'f4', (grid_x_dim.name, grid_y_dim.name, sample_dim.name))
         tensor_var.units = 'Weight assigned to each sample in interpolating point (float)'
 
         # populate the dataset
-        boundary_y_var[:] = list(map(lambda p: p[1], b))
         boundary_x_var[:] = list(map(lambda p: p[0], b))
-        sample_y_var[:] = list(self._samples.geometry.apply(lambda p: list(p.coords)[0][1]))
+        boundary_y_var[:] = list(map(lambda p: p[1], b))
         sample_x_var[:] = list(self._samples.geometry.apply(lambda p: list(p.coords)[0][0]))
-        grid_y_var[:] = self._ys
+        sample_y_var[:] = list(self._samples.geometry.apply(lambda p: list(p.coords)[0][1]))
         grid_x_var[:] = self._xs
+        grid_y_var[:] = self._ys
         grid_var[:, :] = g
         tensor_var[:, :, :] = self._tensor
 
@@ -385,11 +387,11 @@ class InterpolationTensor:
         df_grid = GeoDataFrame({'x': [i for l in [[j] * len(ys) for j in range(len(xs))] for i in l],
                                 'y': list(range(len(list(ys)))) * len(xs),
                                 'geometry': [Point(x, y) for (x, y) in product(xs, ys)],
-                                'cell': [g[y, x] for (x, y) in product(range(len(xs)), range(len(ys)))]})
+                                'cell': [g[x, y] for (x, y) in product(range(len(xs)), range(len(ys)))]})
 
         # create the tensor
         t = cls(df_points, boundary,
-                ys, xs,
+                xs, ys,
                 grid=df_grid,
                 data=numpy.asarray(root['tensor']).astype(float),
                 **kwds)

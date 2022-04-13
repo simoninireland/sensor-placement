@@ -44,8 +44,8 @@ class NNNI(InterpolationTensor):
 
     '''
 
-    def __init__(self, points, boundary, ys, xs, voronoi = None, grid = None, data = None, cores = 1):
-        # compute the nunber of cores to use when computing the tensor initially
+    def __init__(self, points, boundary, xs, ys, voronoi = None, grid = None, data = None, cores = 1):
+        # compute the nunber of cores to use when computing the tensor
         if cores == 0:
             # use all available or the number of cells, whichever is smaller
             self._cores = min(len(points), cpu_count())
@@ -59,11 +59,11 @@ class NNNI(InterpolationTensor):
         logger.info('NNI tensor initialised to use {cores} cores'.format(cores=self._cores))
 
         # now initialise
-        super().__init__(points, boundary, ys, xs, voronoi=voronoi, grid=grid, data=data)
+        super().__init__(points, boundary, xs, ys, voronoi=voronoi, grid=grid, data=data)
 
     def buildTensor(self):
         # construct the tensor
-        self._tensor = numpy.zeros((max(self._grid['y']) + 1, max(self._grid['x']) + 1, len(self._samples)))
+        self._tensor = numpy.zeros((max(self._grid['x']) + 1, max(self._grid['y']) + 1, len(self._samples)))
         logger.debug('Tensor created with shape {s}'.format(s=self._tensor.shape))
 
         # populate the tensor
@@ -80,24 +80,24 @@ class NNNI(InterpolationTensor):
         '''Construct the natural nearest neighbour interpolation tensor from a
         set of samples taken within a boundary and sampled at the given
         grid of interpolation points.'''
-        for (y, x, s, v) in self.iterateWeightsFor():
-            self._tensor[y, x, s] = v
+        for (x, y, s, v) in self.iterateWeightsFor():
+            self._tensor[x, y, s] = v
 
-    def _tensorPar(self, cores = 1):
+    def _tensorPar(self):
         '''Construct the natural nearest neighbour interpolation tensor from a
         set of samples taken within a boundary and sampled at the given
         grid of interpolation points.'''
 
         # create parallel jobs for each cell
-        with Parallel(n_jobs=cores) as processes:
+        with Parallel(n_jobs=self._cores) as processes:
             # run jobs
-            real_cells = list(self._voronoi.index)
+            real_cells = list(self._grid['cell'].unique())
             rcs = processes(delayed(lambda c: list(self.iterateWeightsFor([c])))(cell) for cell in real_cells)
 
             # store the computed weights in the tensor
             for ds in rcs:
-                for (y, x, s, v) in ds:
-                    self._tensor[y, x, s] = v
+                for (x, y, s, v) in ds:
+                    self._tensor[x, y, s] = v
 
     def iterateWeightsFor(self, real_cells = None):
         '''Compute the weights for all points in the given cells (all by default).
@@ -136,4 +136,4 @@ class NNNI(InterpolationTensor):
                     area = r.geometry.intersection(synthetic_cell).area
                     if area > 0.0:
                         s = self._samples.index.get_loc(id)
-                        yield (int(p['y']), int(p['x']), s, area / synthetic_cell_area)
+                        yield (int(p['x']), int(p['y']), s, area / synthetic_cell_area)
