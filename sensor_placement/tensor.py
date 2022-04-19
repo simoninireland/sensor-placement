@@ -112,7 +112,11 @@ class InterpolationTensor:
 
     def voronoiNeighboursOf(self, real_cell):
         '''Return the cells neighbouring the one given.'''
+
+        # we need to buffer the cell slightly to make sure that
+        # acute-angle contacts are caught
         cell = self._voronoi.loc[real_cell].geometry.buffer(0.0001)
+
         neighbours = self._voronoi[self._voronoi.geometry.intersects(cell)].index
         return list(neighbours.drop([real_cell]))
 
