@@ -30,17 +30,18 @@ logger = logging.getLogger(Logger)
 
 
 class NNNI(InterpolationTensor):
-    '''The operation can be run in parallel on a multicore machine. The
-       degree of parallelism is given by cores, which may be:
+    '''The operation can be run in parallel on a multicore
+       machine. The degree of parallelism is given by cores, which may
+       be:
 
-        - 0 to use the maximum number of available cores
-        - +n to use a specific number of cores
-        - -n to leave n cores unused
+       - 0 to use the maximum number of available cores
+       - +n to use a specific number of cores
+       - -n to leave n cores unused
 
-        There is no benefit to using a degree of parallelism greater than
-        the number of physical cores on the machine. In cases where there are
-        very few cells to compute a smaller amount of parallelism will
-        be used anyway.
+       There is no benefit to using a degree of parallelism greater
+       than the number of physical cores on the machine. In cases
+       where there are very few cells to compute a smaller amount of
+       parallelism will be used anyway.
 
     '''
 

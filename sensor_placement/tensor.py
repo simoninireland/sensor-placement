@@ -112,8 +112,9 @@ class InterpolationTensor:
 
     def voronoiNeighboursOf(self, real_cell):
         '''Return the cells neighbouring the one given.'''
-        cell = self._voronoi.loc[real_cell]
-        return list(self._voronoi[self._voronoi.geometry.touches(cell.geometry)].index)
+        cell = self._voronoi.loc[real_cell].geometry.buffer(0.0001)
+        neighbours = self._voronoi[self._voronoi.geometry.intersects(cell)].index
+        return list(neighbours.drop([real_cell]))
 
     def voronoiBoundaryOf(self, cells):
         '''Return the boundary of the neighbours of the given cells.'''
@@ -147,8 +148,13 @@ class InterpolationTensor:
     def cellContaining(self, p):
         '''Return the cell containing the given point, or -1 if
         the point does not lie in a cell.'''
-        cs = self._voronoi[self._voronoi.geometry.intersects(p)]
-        return cs.index[0] if len(cs) == 1 else -1
+        cs = self._voronoi[self._voronoi.geometry.intersects(p)] # intersects contains
+        if len(cs) == 0:
+            return -1
+        else:
+            # it's possible that there's multiple containment if a point
+            # lies exactly on a cell boundary, in which case we pick one
+            return cs.index[0]
 
 
     # ---------- Tensor construction----------
@@ -185,6 +191,8 @@ class InterpolationTensor:
         neighbourhoods = Series([self.voronoiNeighboursOf(i) + [i] for i in pre_neighbours],
                                 index=pre_neighbours)
         self._voronoi.loc[pre_neighbours, 'neighbourhood'] = neighbourhoods
+        boundaries = neighbourhoods.apply(self.voronoiBoundaryOf)
+        self._voronoi.loc[pre_neighbours, 'boundary'] = boundaries
 
         # re-compute the mapping from grid points to cells
         pts = self._grid[self._grid['cell'].isin(pre_neighbours + [s])]
@@ -218,7 +226,7 @@ class InterpolationTensor:
         '''Return the interpolation grid as a DataFrame.'''
         return self._grid
 
-    def boundaru(self):
+    def boundary(self):
         '''Return the boundary.'''
         return self._boundary
 
@@ -367,7 +375,7 @@ class InterpolationTensor:
     @classmethod
     def load(cls, fn, **kwds):
         '''Load a tensor as an instance of the class from the given NetCDF file.
-        Any ketyword arguments are passed to the constructor for cls.
+        Any keyword arguments are passed to the constructor for cls.
 
         :param fn: filename
         :returns: the tensor'''
