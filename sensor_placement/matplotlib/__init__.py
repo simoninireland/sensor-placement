@@ -18,3 +18,12 @@
 
 # Map tiles
 from .tiles import tile
+
+# Samples
+from .samples import drawSamples, drawVoronoiCells, drawSampleLabels
+
+# Interpolation
+from .interpolation import drawGrid, drawInterpolation
+
+# Interpolation vectors
+from .flowfield import nearestPointTo, drawWeightVector, drawWeightVectors, drawDominantWeightVector

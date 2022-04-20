@@ -30,7 +30,10 @@ SOURCE = \
 	sensor_palcement/folium/interpolation.py \
 	sensor_palcement/folium/samples.py \
 	sensor_placement/matplotlib/__init__.py \
-	sensor_placement/matplotlib/tiles.py
+	sensor_placement/matplotlib/tiles.py \
+	sensor_placement/matplotlib/samples.py \
+	sensor_placement/matplotlib/interpolation.py \
+	sensor_placement/matplotlib/flowfield.py
 SOURCES_TESTS = \
 	test/__init__.py \
 	test/test_io.py \
