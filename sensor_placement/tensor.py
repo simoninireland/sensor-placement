@@ -347,6 +347,8 @@ class InterpolationTensor:
         boundary_x_var.units = 'Boundary longitude (degrees)'
         boundary_y_var = root.createVariable('boundary_y', 'f4', (boundary_dim.name))
         boundary_y_var.units = 'Boundary latitude (degrees)'
+        sample_index_var = root.createVariable('sample_index', 'i4', (sample_dim.name))
+        sample_index_var.units = 'Sample index (integer)'
         sample_x_var = root.createVariable('sample_x', 'f4', (sample_dim.name))
         sample_x_var.units = 'Sample latitude (degrees)'
         sample_y_var = root.createVariable('sample_y', 'f4', (sample_dim.name))
@@ -366,6 +368,7 @@ class InterpolationTensor:
         # populate the dataset
         boundary_x_var[:] = list(map(lambda p: p[0], b))
         boundary_y_var[:] = list(map(lambda p: p[1], b))
+        sample_index_var[:] = list(self._samples.index)
         sample_x_var[:] = list(self._samples.geometry.apply(lambda p: list(p.coords)[0][0]))
         sample_y_var[:] = list(self._samples.geometry.apply(lambda p: list(p.coords)[0][1]))
         grid_x_var[:] = self._xs
@@ -390,15 +393,17 @@ class InterpolationTensor:
         root = Dataset(fn, 'r', format='NETCDF4')
 
         # read the underlying sample points and boundary
-        samplePoints = list(map(lambda p: Point(p[1], p[0]), zip(root['sample_x'], root['sample_y'])))
-        df_points = GeoDataFrame({'geometry': samplePoints})
+        sampleIdx = root['sample_index']
+        samplePoints = list(map(lambda p: Point(p[0], p[1]), zip(root['sample_x'], root['sample_y'])))
+        df_points = GeoDataFrame({'geometry': samplePoints},
+                                 index=sampleIdx)
         boundaryPoints = list(map(lambda p: Point(p[1], p[0]), zip(root['boundary_x'], root['boundary_y'])))
         boundaryPoints += [boundaryPoints[-1]]   # close the sequence
         boundary = Polygon(boundaryPoints)
 
         # read the grid structure
-        xs = numpy.asarray(root['grid_x']).astype(float)
-        ys = numpy.asarray(root['grid_y']).astype(float)
+        xs = list(numpy.asarray(root['grid_x']).astype(float))
+        ys = list(numpy.asarray(root['grid_y']).astype(float))
         g = numpy.asarray(root['grid']).astype(int)
         df_grid = GeoDataFrame({'x': [i for l in [[j] * len(ys) for j in range(len(xs))] for i in l],
                                 'y': list(range(len(list(ys)))) * len(xs),
