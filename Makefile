@@ -14,7 +14,9 @@ TEXT =
 
 # Notebooks
 NOTEBOOKS =  \
-	sensor-placement.ipynb
+	sensor-placement.ipynb \
+	datacheck.ipynb \
+	simple.ipynb
 
 # Source code
 SOURCE = \
