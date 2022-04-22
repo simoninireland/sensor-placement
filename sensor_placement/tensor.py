@@ -39,7 +39,8 @@ class InterpolationTensor:
     The tensor is stored as a three-dimensional array with axes (lon, lat, sample).
     '''
 
-    def __init__(self, points, boundary, xs, ys, voronoi = None, grid = None, data = None):
+    def __init__(self, points, boundary, xs, ys,
+                 voronoi = None, grid = None, data = None):
         self._samples = points.copy()   # we'll change this if we edit the tensor
         self._boundary = boundary
         self._voronoi = None
@@ -59,6 +60,15 @@ class InterpolationTensor:
 
 
     # ---------- Voronoi cell construction ----------
+
+    # id: identifier for sample and cell
+    # centre: location of sample point
+    # geometry: boundary of Voronoi cell around centre
+    # neighbourhood: ids of neighbouring cells, including this one
+    # boundary: boundary of the neighbourhood, union of neighbourhood's cell boundaries
+
+    # order of samples wiuthin the DataFrame corresponds to iundex of sample within
+    # the sample vector, and order of weights within the tensor
 
     def buildVoronoi(self):
         '''Construct a table of natural nearest neighbour Voronoi cells
@@ -127,6 +137,12 @@ class InterpolationTensor:
 
     # ---------- Grid construction----------
 
+    # x: x co-ordinate of interpolation point
+    # y: y- co-ordinate
+    # geometry: Point at these co-ordinates
+    # cell: id of Voronoi cell this point sits within
+    # distance: distance to the cell centre
+
     def buildGeometry(self):
         '''Construct the grid of interpolation points from a set of samples,
         a set of their Voronoi cells, and the sample point axes.
@@ -149,6 +165,12 @@ class InterpolationTensor:
             cells.append(self.cellContaining(pt.geometry))
         self._grid['cell'] = cells
 
+        # compute the distances to the cell centres
+        distances = []
+        for _, pt in self._grid.iterrows():
+            distances.append(self.distanceToSample(pt.geometry, pt['cell']))
+        self._grid['distance'] = distances
+
     def cellContaining(self, p):
         '''Return the cell containing the given point, or -1 if
         the point does not lie in a cell.'''
@@ -159,6 +181,10 @@ class InterpolationTensor:
             # it's possible that there's multiple containment if a point
             # lies exactly on a cell boundary, in which case we pick one
             return cs.index[0]
+
+    def distanceToSample(self, p, s):
+        '''Return the distance from the given point to the given sample.'''
+        return p.distance(self._voronoi.loc[s].centre)
 
 
     # ---------- Tensor construction----------
@@ -198,12 +224,17 @@ class InterpolationTensor:
         boundaries = neighbourhoods.apply(self.voronoiBoundaryOf)
         self._voronoi.loc[pre_neighbours, 'boundary'] = boundaries
 
-        # re-compute the mapping from grid points to cells
+        # re-compute the mapping from grid points to cells, and their distances
         pts = self._grid[self._grid['cell'].isin(pre_neighbours + [s])]
         cells = []
         for _, pt in pts.iterrows():
             cells.append(self.cellContaining(pt.geometry))
         self._grid.loc[pts.index, 'cell'] = cells
+        distances = []
+        for i in range(len(pts)):
+            pt = pts.iloc[i]
+            distances.append(self.distanceToSample(pt.geometry, cells[i]))
+        self._grid.loc[pts.index, 'distance'] = distances
 
         # re-compute the weights for all these points
         for (x, y, s, v) in self.iterateWeightsFor(pre_neighbours):
@@ -329,10 +360,13 @@ class InterpolationTensor:
         # that simply suplicates the first
         b = self._boundary.exterior.coords[:-1]
 
-        # turn the grid into an array of cell (sample) indices
-        g = numpy.full((len(self._xs), len(self._ys)), -1)
+        # turn the grid into an array of cell (sample) indices and an array
+        # of distances to cell samples
+        g = numpy.full((len(self._xs), len(self._ys)), -1, dtype=int)
+        d = numpy.full((len(self._xs), len(self._ys)), 0, dtype=float)
         for _, r in self._grid.iterrows():
             g[r['x'], r['y']] = r['cell']
+            d[r['x'], r['y']] = r['distance']
 
         # dimensions
         sample_dim = root.createDimension('sample', len(self._samples))
@@ -362,6 +396,9 @@ class InterpolationTensor:
         # lon_var = root.createVariable('long', 'f4', (station_dim.name))
         # lon_var.units = 'Longitude (degree)'
         grid_var = root.createVariable('grid', 'i4', (grid_x_dim.name, grid_y_dim.name))
+        grid_var.units = 'Voronoi cell containing this grid point (integer)'
+        distance_var = root.createVariable('distance', 'f4', (grid_x_dim.name, grid_y_dim.name))
+        distance_var.units = 'Distance from this point to sample point (float)'
         tensor_var = root.createVariable('tensor', 'f4', (grid_x_dim.name, grid_y_dim.name, sample_dim.name))
         tensor_var.units = 'Weight assigned to each sample in interpolating point (float)'
 
@@ -374,6 +411,7 @@ class InterpolationTensor:
         grid_x_var[:] = self._xs
         grid_y_var[:] = self._ys
         grid_var[:, :] = g
+        distance_var[:, :] = d
         tensor_var[:, :, :] = self._tensor
 
         # close the file
@@ -405,10 +443,12 @@ class InterpolationTensor:
         xs = list(numpy.asarray(root['grid_x']).astype(float))
         ys = list(numpy.asarray(root['grid_y']).astype(float))
         g = numpy.asarray(root['grid']).astype(int)
+        d = numpy.asarray(root['distance']).astype(float)
         df_grid = GeoDataFrame({'x': [i for l in [[j] * len(ys) for j in range(len(xs))] for i in l],
                                 'y': list(range(len(list(ys)))) * len(xs),
                                 'geometry': [Point(x, y) for (x, y) in product(xs, ys)],
-                                'cell': [g[x, y] for (x, y) in product(range(len(xs)), range(len(ys)))]})
+                                'cell': [g[x, y] for (x, y) in product(range(len(xs)), range(len(ys)))],
+                                'distance': [d[x, y] for (x, y) in product(range(len(xs)), range(len(ys)))]})
 
         # create the tensor
         t = cls(df_points, boundary,

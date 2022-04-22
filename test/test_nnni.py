@@ -98,6 +98,34 @@ class NNNITest(unittest.TestCase):
                 for s in range(len(df_points)):
                     self.assertEqual(t_seq[i, j, s], t_par[i, j, s])
 
+    def testDistance(self):
+        '''Test distances in grid.'''
+        boundary = Polygon([Point(0.0, 0.0),
+                            Point(0.0, 1.0),
+                            Point(1.0, 1.0),
+                            Point(1.0, 0.0)])
+        df_points = GeoDataFrame([Point(0.25, 0.25),
+                                  Point(0.75, 0.25),
+                                  Point(0.75, 0.75),
+                                  Point(0.25, 0.75)], columns=['geometry'])
+        xs = numpy.linspace(0.0, 1.0, num=10)
+        ys = numpy.linspace(0.0, 1.0, num=20)
+
+        t = NNNI(df_points, boundary, xs, ys)
+
+        # check distances
+        for i in range(len(xs)):
+            for j in range(len(ys)):
+                g1 = t._grid[t._grid['x'] == i]
+                g2 = g1[g1['y'] == j].iloc[0]
+                c = g2['cell']
+                d = g2['distance']
+                p = Point(xs[i], ys[j])
+                q = df_points.loc[c].geometry
+                ps, qs = list(p.coords)[0], list(q.coords)[0]
+                h = numpy.sqrt((qs[0] - ps[0]) ** 2 + (qs[1] - ps[1]) ** 2)
+                self.assertEqual(h, d)
+
 
     # ---------- Editing----------
 
@@ -176,6 +204,18 @@ class NNNITest(unittest.TestCase):
                     s_orig = s + 1 if s >= 2 else s  # skip removed cell
                     self.assertGreaterEqual(t._tensor[x, y, s], t_orig._tensor[x, y, s_orig])
 
+        # check distances
+        for i in range(len(xs)):
+            for j in range(len(ys)):
+                g1 = t._grid[t._grid['x'] == i]
+                g2 = g1[g1['y'] == j].iloc[0]
+                c = g2['cell']
+                d = g2['distance']
+                p = Point(xs[i], ys[j])
+                q = df_points.loc[c].geometry
+                ps, qs = list(p.coords)[0], list(q.coords)[0]
+                h = numpy.sqrt((qs[0] - ps[0]) ** 2 + (qs[1] - ps[1]) ** 2)
+                self.assertEqual(h, d)
 
 if __name__ == '__main__':
     unittest.main()

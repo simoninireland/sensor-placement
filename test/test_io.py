@@ -44,7 +44,7 @@ class IOTest(unittest.TestCase):
         '''Delete the temporary file.'''
         try:
             os.remove(self._fn)
-            #pass
+            # pass
         except OSError:
             pass
 
@@ -61,7 +61,7 @@ class IOTest(unittest.TestCase):
         xs = numpy.linspace(0.0, 1.0, num=10)
         ys = numpy.linspace(0.0, 1.0, num=20)
 
-        t = NNNI(df_points, boundary, ys, xs)
+        t = NNNI(df_points, boundary, xs, ys)
         t.save(self._fn)
 
     def testLoadAndSave(self):
@@ -78,7 +78,7 @@ class IOTest(unittest.TestCase):
         ys = numpy.linspace(0.0, 1.0, num=20)
 
         # create and save tensor
-        t = NNNI(df_points, boundary, ys, xs)
+        t = NNNI(df_points, boundary, xs, ys)
         t.save(self._fn)
 
         # ... and then load it back
@@ -93,16 +93,29 @@ class IOTest(unittest.TestCase):
         for j in range(len(ys)):
             self.assertAlmostEqual(r.ys()[j], ys[j], places=5)
 
+        # check distances
+        for i in range(len(xs)):
+            for j in range(len(ys)):
+                g1 = r._grid[t._grid['x'] == i]
+                g2 = g1[g1['y'] == j].iloc[0]
+                c = g2['cell']
+                d = g2['distance']
+                p = Point(xs[i], ys[j])
+                q = df_points.loc[c].geometry
+                ps, qs = list(p.coords)[0], list(q.coords)[0]
+                h = numpy.sqrt((qs[0] - ps[0]) ** 2 + (qs[1] - ps[1]) ** 2)
+                self.assertAlmostEqual(h, d, places=5)
+
         # apply both tensors to the same sample
         samples = numpy.asarray([50, 0, 50, 0])
         g_t = t(samples)
         g_r = r(samples)
 
         # check shapes
-        self.assertEqual(g_t.shape, (len(ys), len(xs)))
-        self.assertEqual(g_r.shape, (len(ys), len(xs)))
+        self.assertEqual(g_t.shape, (len(xs), len(ys)))
+        self.assertEqual(g_r.shape, (len(xs), len(ys)))
 
         # check interpolated values
-        for i in range(len(ys)):
-            for j in range(len(xs)):
+        for i in range(len(xs)):
+            for j in range(len(ys)):
                 self.assertAlmostEqual(g_t[i, j], g_r[i, j], places=5)
