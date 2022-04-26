@@ -29,6 +29,8 @@ from matplotlib.colors import Normalize
 from mpl_toolkits.axes_grid1 import make_axes_locatable
 
 
+# ---------- Support functions ----------
+
 def makeVector(p, q, l):
     '''Construct the offset for a vector aimed of p to q of length l'''
     (x_p, y_p) = list(p.coords)[0]
@@ -53,6 +55,42 @@ def nearestPointTo(p, tensor):
     cloud = MultiPoint(list(tensor._grid.geometry))
     return nearest_points(cloud, p)[0]
 
+
+def drawVectorOffset(p, dx, dy,
+               ax=None, radius=None, color=None):
+    '''Draw a vector with base at p and offsets dx and dy.'''
+
+    # fill in defaults
+    if ax is None:
+        ax = plt.gca()
+    if color is None:
+        color = 'r'
+    if radius is None:
+        radius = 0.0
+
+    # draw the vector
+    xy = list(p.coords)[0]
+    ax.arrow(xy[0], xy[1], dx, dy, color=color, linewidth=0.1, width=0.002)
+
+
+def drawVector(p, q, w,
+               ax=None, radius=None, overwrite=True, color=None):
+    '''Draw a vector from p towards q with lengfth that is a fraction w of
+    the given radius.'''
+
+    # cut-off the vector drawing if the arrow will overwrite the endpoint
+    if (not overwrite) and (p.distance(q) < w * radius):
+        return
+
+    # construct vector offset
+    (dx, dy) = makeVector(p, q, w * radius)
+
+    # draw it
+    drawVectorOffset(p, dx, dy, ax=ax, radius=radius, color=color)
+
+
+
+# ---------- User functions ----------
 
 def drawWeightVector(tensor, p, s,
                      ax=None, radius=None, overwrite=True, color=None):
@@ -81,14 +119,7 @@ def drawWeightVector(tensor, p, s,
     # get weight
     w = tensor._tensor[i, j, si]
 
-    # cut-off the vector drawing if the arrow will overwrite either of the points
-    if (not overwrite) and (p.distance(q) < w * radius):
-        return
-
-    # construct vector endpoint
-    (dx, dy) = makeVector(p, q, w * radius)
-
-    ax.arrow(xy[0], xy[1], dx, dy, color=color, linewidth=0.1, width=0.002)
+    drawVector(p, q, w, ax=ax, radius=radius, overwrite=overwrite, color=color)
 
 
 def drawWeightVectors(tensor, p, cutoff=0.0,
