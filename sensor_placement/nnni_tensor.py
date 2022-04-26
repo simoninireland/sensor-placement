@@ -81,8 +81,8 @@ class NNNI(InterpolationTensor):
         '''Construct the natural nearest neighbour interpolation tensor from a
         set of samples taken within a boundary and sampled at the given
         grid of interpolation points.'''
-        for (x, y, s, v) in self.iterateWeightsFor():
-            self._tensor[x, y, s] = v
+        for (x, y, si, v) in self.iterateWeightsFor():
+            self._tensor[x, y, si] = v
 
     def _tensorPar(self):
         '''Construct the natural nearest neighbour interpolation tensor from a
@@ -97,8 +97,8 @@ class NNNI(InterpolationTensor):
 
             # store the computed weights in the tensor
             for ds in rcs:
-                for (x, y, s, v) in ds:
-                    self._tensor[x, y, s] = v
+                for (x, y, si, v) in ds:
+                    self._tensor[x, y, si] = v
 
     def iterateWeightsFor(self, real_cells = None):
         '''Compute the weights for all points in the given cells (all by default).
@@ -136,5 +136,5 @@ class NNNI(InterpolationTensor):
                 for id, r in df_real_neighbourhood.iterrows():
                     area = r.geometry.intersection(synthetic_cell).area
                     if area > 0.0:
-                        s = self._samples.index.get_loc(id)
-                        yield (int(p['x']), int(p['y']), s, area / synthetic_cell_area)
+                        si = self._samples.index.get_loc(id)
+                        yield (int(p['x']), int(p['y']), si, area / synthetic_cell_area)
