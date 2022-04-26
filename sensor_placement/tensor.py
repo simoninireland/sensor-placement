@@ -130,6 +130,9 @@ class InterpolationTensor:
         neighbours = self._voronoi[self._voronoi.geometry.intersects(cell)].index
         return list(neighbours.drop([real_cell]))
 
+
+    # TODO Use a circle!!
+
     def voronoiBoundaryOf(self, cells):
         '''Return the boundary of the neighbours of the given cells.'''
         return unary_union(self._voronoi.loc[cells].geometry)
@@ -179,7 +182,7 @@ class InterpolationTensor:
     def cellContaining(self, p):
         '''Return the cell containing the given point, or -1 if
         the point does not lie in a cell.'''
-        cs = self._voronoi[self._voronoi.geometry.intersects(p)] # intersects contains
+        cs = self._voronoi[self._voronoi.geometry.intersects(p)]
         if len(cs) == 0:
             return -1
         else:
