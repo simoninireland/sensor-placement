@@ -48,7 +48,7 @@ class NNNITest(unittest.TestCase):
         self.assertEqual(t.shape, (10, 20, len(df_points)))
         self.assertEqual(len(t.weights(0, 0)), len(df_points))
         self.assertEqual(t.shape, t._tensor.shape)
-        self.assertEqual(t._grid.shape, (len(xs) * len(ys), len(df_points)))
+        self.assertEqual(len(t._grid), len(xs) * len(ys))
 
     def testApply(self):
         '''Test we can apply the tensor.'''
@@ -216,6 +216,67 @@ class NNNITest(unittest.TestCase):
                 ps, qs = list(p.coords)[0], list(q.coords)[0]
                 h = numpy.sqrt((qs[0] - ps[0]) ** 2 + (qs[1] - ps[1]) ** 2)
                 self.assertEqual(h, d)
+
+    def testAdd(self):
+        '''Test we can add a sample.'''
+        boundary = Polygon([Point(0.0, 0.0),
+                            Point(0.0, 1.0),
+                            Point(1.0, 1.0),
+                            Point(1.0, 0.0)])
+        df_points = GeoDataFrame([Point(0.25, 0.25),
+                                  Point(0.75, 0.25),
+                                  Point(0.75, 0.75),
+                                  Point(0.25, 0.75)], columns=['geometry'])
+        xs = numpy.linspace(0.0, 1.0, num=10)
+        ys = numpy.linspace(0.0, 1.0, num=20)
+
+        t = NNNI(df_points, boundary, xs, ys)
+        t_orig = deepcopy(t)
+
+        new_cell = t.addSample(0.5, 0.5)
+
+        # tensor dimensions increased
+        self.assertEqual(t.shape, (len(xs), len(ys), len(df_points) + 1))
+
+        # neighbourhoods correct
+        self.assertCountEqual(t._samples.index, set([0, 1, 2, 3, new_cell]))
+        self.assertCountEqual(set(t._voronoi.loc[0].neighbourhood), set([0, 1, 3, new_cell]))
+        self.assertCountEqual(set(t._voronoi.loc[1].neighbourhood), set([1, 0, 2, new_cell]))
+        self.assertCountEqual(set(t._voronoi.loc[2].neighbourhood), set([2, 1, 3, new_cell]))
+        self.assertCountEqual(set(t._voronoi.loc[3].neighbourhood), set([3, 0, 2, new_cell]))
+        self.assertCountEqual(set(t._voronoi.loc[new_cell].neighbourhood), set([0, 1, 2, 3, new_cell]))
+        # boundaries correct
+        self.assertTrue(t._voronoi.loc[new_cell]['boundary'].equals(boundary))
+
+        # points all within their cell boundaries
+        for x in range(len(t._xs)):
+            for y in range(len(t._ys)):
+                r = t._grid[t._grid['x'] == x]
+                c = r[r['y'] == y]
+                cell = c.iloc[0]['cell']
+                boundary = t._voronoi.loc[cell].geometry
+                self.assertTrue(boundary.intersects(Point(t._xs[x], t._ys[y])))
+
+        # weights in new tensor should always be less than or equal to those
+        # in the original tensor, since we've added information
+        for x in range(len(xs)):
+            for y in range(len(ys)):
+                for s in range(len(df_points) - 1):
+                    self.assertLessEqual(t._tensor[x, y, s], t_orig._tensor[x, y, s])
+
+        # check distances
+        for i in range(len(xs)):
+            for j in range(len(ys)):
+                g1 = t._grid[t._grid['x'] == i]
+                g2 = g1[g1['y'] == j].iloc[0]
+                c = g2['cell']
+                d = g2['distance']
+                p = Point(xs[i], ys[j])
+                q = t._samples.loc[c].geometry
+                ps, qs = list(p.coords)[0], list(q.coords)[0]
+                h = numpy.sqrt((qs[0] - ps[0]) ** 2 + (qs[1] - ps[1]) ** 2)
+                self.assertEqual(h, d)
+
 
 if __name__ == '__main__':
     unittest.main()

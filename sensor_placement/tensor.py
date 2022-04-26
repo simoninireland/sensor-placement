@@ -168,7 +168,12 @@ class InterpolationTensor:
         # compute the distances to the cell centres
         distances = []
         for _, pt in self._grid.iterrows():
-            distances.append(self.distanceToSample(pt.geometry, pt['cell']))
+            c = pt['cell']
+            if c == -1:
+                # uncovered point, set distance to -1
+                distances.append(-1)
+            else:
+                distances.append(self.distanceToSample(pt.geometry, c))
         self._grid['distance'] = distances
 
     def cellContaining(self, p):
@@ -237,8 +242,74 @@ class InterpolationTensor:
         self._grid.loc[pts.index, 'distance'] = distances
 
         # re-compute the weights for all these points
-        for (x, y, s, v) in self.iterateWeightsFor(pre_neighbours):
-            self._tensor[x, y, s] = v
+        for (x, y, si, v) in self.iterateWeightsFor(pre_neighbours):
+            self._tensor[x, y, si] = v
+
+    def addSample(self, x, y):
+        '''Add a sample at the given point to the tensor.'''
+        logging.debug(f'Adding sample at ({x}, {y})')
+
+        # check we lie within the boundary
+        if not self._boundary.contains(Point(x, y)):
+            raise ValueError('New sample point does not lie within boundary')
+
+        # create the new point and its tensor index
+        p = Point(x, y)
+        s = self._samples.index.max() + 1
+        self._samples.loc[s] = dict(x=x, y=y, geometry=p)
+
+        # find the cell containing the new point
+        cs = self._voronoi.geometry.intersects(p)
+        if len(cs) == 0:
+            raise ValueError(f'Can\'t find cell containing ({x} {y})')
+        real_cell = cs.index[0]        # if we lie on a boundary, just pick one
+
+        # retrieve the neighbourhood of the new sample point
+        pre_neighbours = self.voronoiNeighboursOf(real_cell) + [real_cell]
+        pre_coords = list(self._voronoi.loc[pre_neighbours]['centre'])
+        pre_boundary = self.voronoiBoundaryOf(pre_neighbours)
+
+        # create a new cell around the sample point, re-computing the others
+        new_coords = pre_coords + [p]
+        new_voronoi_cells = self.voronoiCells(new_coords, pre_boundary)
+        self._voronoi.loc[pre_neighbours, 'geometry'] = new_voronoi_cells[:-1]
+        new_cell = new_voronoi_cells[-1]
+
+        # add new cell
+        self._voronoi.loc[s] = dict(centre=p,
+                                    geometry=new_cell,
+                                    neighbourhood=pre_neighbours + [s],
+                                    boundary=pre_boundary)
+
+        # re-establish the new cell neighbourhoods and boundaries
+        neighbourhoods = Series([self.voronoiNeighboursOf(i) + [i] for i in pre_neighbours],
+                                index=pre_neighbours)
+        self._voronoi.loc[pre_neighbours, 'neighbourhood'] = neighbourhoods
+        boundaries = neighbourhoods.apply(self.voronoiBoundaryOf)
+        self._voronoi.loc[pre_neighbours, 'boundary'] = boundaries
+
+        # re-compute the mapping from grid points to cells, and their distances
+        pts = self._grid[self._grid['cell'].isin(pre_neighbours)]
+        cells = []
+        for _, pt in pts.iterrows():
+            cells.append(self.cellContaining(pt.geometry))
+        self._grid.loc[pts.index, 'cell'] = cells
+        distances = []
+        for i in range(len(pts)):
+            pt = pts.iloc[i]
+            distances.append(self.distanceToSample(pt.geometry, cells[i]))
+        self._grid.loc[pts.index, 'distance'] = distances
+
+        # expand the tensor to accommodate the new sample
+        ss = numpy.zeros((self._tensor.shape[0], self._tensor.shape[1], 1))
+        self._tensor = numpy.append(self._tensor, ss, axis=2)
+
+        # re-compute the weights for all these points
+        for (x, y, si, v) in self.iterateWeightsFor(pre_neighbours):
+            self._tensor[x, y, si] = v
+
+        # return the new sample
+        return s
 
 
     # ---------- Access ----------
@@ -343,6 +414,17 @@ class InterpolationTensor:
 
     # ---------- I/O to and from NetCDF ----------
 
+    def saveTensor(self, root):
+        '''Save information about the tensor to the given NetCDF root.
+        This can be overridden by sub-classes if more information needs to be saved.
+        The default does nothing.'''
+        pass
+
+    def loadTensor(self, root):
+        '''Load any extra information about the tensor. The basic data
+        structures will already be initialised. The default dsoes nothing.'''
+        pass
+
     def save(self, fn):
         '''Save the tensor to the given file in NetCDF format.
 
@@ -414,6 +496,9 @@ class InterpolationTensor:
         distance_var[:, :] = d
         tensor_var[:, :, :] = self._tensor
 
+        # save any extra data
+        self.saveTensor(root)
+
         # close the file
         root.close()
 
@@ -456,5 +541,11 @@ class InterpolationTensor:
                 grid=df_grid,
                 data=numpy.asarray(root['tensor']).astype(float),
                 **kwds)
+
+        # load any additional data into the newly-created tensor
+        t.loadTensor(root)
+
+        # close the file
+        root.close()
 
         return t
