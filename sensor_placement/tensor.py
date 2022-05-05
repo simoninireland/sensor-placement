@@ -123,15 +123,24 @@ class InterpolationTensor:
     def voronoiNeighboursOf(self, real_cell):
         '''Return the cells neighbouring the one given.'''
 
+        # There are some topologies in which points in non-neighbouring
+        # cells (in the topological sense) can still be influenced, so
+        # we build a circle to catch them with radius to the farthest
+        # immediate neighbour. This will catch acute-angled intrusions
+        c = self._voronoi.loc[real_cell]['centre']
+        g = self._voronoi.loc[real_cell].geometry
+        immediate = self._voronoi[self._voronoi.geometry.intersects(g)].index
+        farthestImmediate = max([p.distance(c) for p in self._voronoi.loc[immediate]['centre']])
+        neighbours = [s for s in self._voronoi.index if self._voronoi.loc[s].geometry.distance(c) <= farthestImmediate and s != real_cell]
+        logging.debug(f'Neighbours of {real_cell} set to {neighbours}')
+
+        return neighbours
+
         # we need to buffer the cell slightly to make sure that
         # acute-angle contacts are caught
-        cell = self._voronoi.loc[real_cell].geometry.buffer(0.0001)
-
-        neighbours = self._voronoi[self._voronoi.geometry.intersects(cell)].index
-        return list(neighbours.drop([real_cell]))
-
-
-    # TODO Use a circle!!
+        # cell = self._voronoi.loc[real_cell].geometry.buffer(0.0001)
+        # neighbours = self._voronoi[self._voronoi.geometry.intersects(cell)].index
+        # return list(neighbours.drop([real_cell]))
 
     def voronoiBoundaryOf(self, cells):
         '''Return the boundary of the neighbours of the given cells.'''
@@ -247,6 +256,50 @@ class InterpolationTensor:
         # re-compute the weights for all these points
         for (x, y, si, v) in self.iterateWeightsFor(pre_neighbours):
             self._tensor[x, y, si] = v
+
+    def removeSamples(self, ss):
+        '''Remove all samples in ss. This is more efficient than removing them
+        one by one, and reduces re-computation of weights.'''
+        logging.debug(f'Removing cells {ss}')
+
+        # retrieve all cells neighbouring cells to be deleted
+        pre_neighbours = set()
+        for s in ss:
+            pre_neighbours = pre_neighbours.union(set(self.voronoiNeighboursOf(s)))
+        pre_neighbours = pre_neighbours.difference(set(ss))
+        pre_all = pre_neighbours.union(set(ss))
+        pre_boundary = self.voronoiBoundaryOf(pre_all)
+        logging.debug(f'Affected remaining cells {pre_neighbours}')
+
+        # remove samples from the data structures
+        self._samples.drop(ss, axis=0, inplace=True)            # sample points
+        sis = [self._voronoi.index.get_loc(s) for s in ss]
+        self._tensor = numpy.delete(self._tensor, sis, axis=2)  # tensor sample planes
+        self._voronoi.drop(ss, axis=0, inplace=True)
+
+        # re-compute the cells in the neighbourhood
+        # (Need to use an explicit Series because the elements are themselves lists)
+        pre_neighbourhood = list(self._samples.loc[pre_neighbours].geometry)
+        cells = self.voronoiCells(pre_neighbourhood, pre_boundary)
+        self._voronoi.loc[pre_neighbours, ['geometry']] = cells
+        neighbourhoods = Series([self.voronoiNeighboursOf(i) + [i] for i in pre_neighbours],
+                                index=pre_neighbours)
+        self._voronoi.loc[pre_neighbours, 'neighbourhood'] = neighbourhoods
+        boundaries = neighbourhoods.apply(self.voronoiBoundaryOf)
+        self._voronoi.loc[pre_neighbours, 'boundary'] = boundaries
+
+        # re-compute cell memberships and distances
+        pts = self._grid[self._grid['cell'].isin(pre_all)]
+        cells = [self.cellContaining(pt) for pt in pts.geometry]
+        self._grid.loc[pts.index, 'cell'] = cells
+        distances = [self.distanceToSample(pts.iloc[i].geometry, cells[i]) for i in range(len(pts))]
+        self._grid.loc[pts.index, 'distance'] = distances
+
+        # re-compute the weights for all these points
+        for c in pre_neighbours:
+            logging.debug(f'Computing weights for {c}')
+            for (x, y, si, v) in self.iterateWeightsFor([c]):
+                self._tensor[x, y, si] = v
 
     def addSample(self, x, y):
         '''Add a sample at the given point to the tensor.'''

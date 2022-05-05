@@ -26,6 +26,10 @@ from geopandas import GeoDataFrame
 from shapely.geometry import Point, Polygon
 
 
+import logging
+logging.basicConfig(level=logging.DEBUG)
+
+
 class NNNITest(unittest.TestCase):
 
     # ---------- Basics ----------
@@ -157,6 +161,94 @@ class NNNITest(unittest.TestCase):
         self.assertCountEqual(set(t._voronoi.loc[1].neighbourhood), set([0, 1, 3, 4]))
         self.assertCountEqual(set(t._voronoi.loc[3].neighbourhood), set([0, 1, 3, 4]))
         self.assertCountEqual(set(t._voronoi.loc[4].neighbourhood), set([0, 1, 3, 4]))
+
+        # points in the right cells
+        self.assertNotIn(2, set(t._grid['cell']))
+        for x in range(int(len(xs) * 0.5)):
+            for y in range(int(len(ys) * 0.5)):
+                p = t._grid[t._grid['x'] == x]
+                q = p[p['y'] == y]
+                self.assertEqual(q['cell'].iloc[0], 0)
+        for x in range(int(len(xs) * 0.5) + 1, len(xs)):
+            for y in range(int(len(ys) * 0.5)):
+                p = t._grid[t._grid['x'] == x]
+                q = p[p['y'] == y]
+                self.assertEqual(q['cell'].iloc[0], 1)
+        for x in range(int(len(xs) * 0.5)):
+            for y in range(int(len(ys) * 0.5) + 1, len(ys)):
+                p = t._grid[t._grid['x'] == x]
+                q = p[p['y'] == y]
+                self.assertEqual(q['cell'].iloc[0], 4)
+        for x in range(int(len(xs) * 0.5 ) + 1, len(xs)):
+            for y in range(int(len(ys) * 0.5) + 1, len(ys)):
+                p = t._grid[t._grid['x'] == x]
+                q = p[p['y'] == y]
+                self.assertEqual(q['cell'].iloc[0], 3)
+
+        # boundaries of cells correct
+        self.assertTrue(t._voronoi.loc[0]['boundary'].equals(boundary))
+        self.assertTrue(t._voronoi.loc[1]['boundary'].equals(boundary))
+        self.assertTrue(t._voronoi.loc[3]['boundary'].equals(boundary))
+        self.assertTrue(t._voronoi.loc[4]['boundary'].equals(boundary))
+
+        # points all within their cell boundaries
+        for x in range(len(t._xs)):
+            for y in range(len(t._ys)):
+                r = t._grid[t._grid['x'] == x]
+                c = r[r['y'] == y]
+                cell = c.iloc[0]['cell']
+                boundary = t._voronoi.loc[cell].geometry
+                self.assertTrue(boundary.intersects(Point(t._xs[x], t._ys[y])))
+
+        # weights in new tensor should always be greater than or equal to those
+        # in the original tensor, since we've removed information
+        for x in range(len(xs)):
+            for y in range(len(ys)):
+                for s in range(len(df_points) - 1):
+                    s_orig = s + 1 if s >= 2 else s  # skip removed cell
+                    self.assertGreaterEqual(t._tensor[x, y, s], t_orig._tensor[x, y, s_orig])
+
+        # check distances
+        for i in range(len(xs)):
+            for j in range(len(ys)):
+                g1 = t._grid[t._grid['x'] == i]
+                g2 = g1[g1['y'] == j].iloc[0]
+                c = g2['cell']
+                d = g2['distance']
+                p = Point(xs[i], ys[j])
+                q = df_points.loc[c].geometry
+                ps, qs = list(p.coords)[0], list(q.coords)[0]
+                h = numpy.sqrt((qs[0] - ps[0]) ** 2 + (qs[1] - ps[1]) ** 2)
+                self.assertEqual(h, d)
+
+    def testRemoves(self):
+        '''Test we can remove several samples.'''
+        boundary = Polygon([Point(0.0, 0.0),
+                            Point(0.0, 1.0),
+                            Point(1.0, 1.0),
+                            Point(1.0, 0.0)])
+        df_points = GeoDataFrame([Point(0.25, 0.25),
+                                  Point(0.75, 0.25),
+                                  Point(0.5, 0.5),
+                                  Point(0.75, 0.75),
+                                  Point(0.25, 0.75)], columns=['geometry'])
+        xs = numpy.linspace(0.0, 1.0, num=10)
+        ys = numpy.linspace(0.0, 1.0, num=20)
+
+        t = NNNI(df_points, boundary, xs, ys)
+        t_orig = deepcopy(t)
+
+        to_remove = [0, 2]
+        t.removeSamples(to_remove)
+
+        # tensor dimensions reduced
+        self.assertEqual(t.shape, (len(xs), len(ys), len(df_points) - len(to_remove)))
+
+        # neighbourhoods correct
+        self.assertCountEqual(t._samples.index, [1, 3, 4])
+        self.assertCountEqual(set(t._voronoi.loc[1].neighbourhood), set([1, 3, 4]))
+        self.assertCountEqual(set(t._voronoi.loc[3].neighbourhood), set([1, 3, 4]))
+        self.assertCountEqual(set(t._voronoi.loc[4].neighbourhood), set([1, 3, 4]))
 
         # points in the right cells
         self.assertNotIn(2, set(t._grid['cell']))
