@@ -87,6 +87,9 @@ BIBLIOGRAPHY = bibliography.bib
 # License
 LICENSE = LICENSE
 
+# Diagrams directory
+DIAGRAMS_DIR = diagrams
+
 
 # ----- Tools -----
 
@@ -195,13 +198,16 @@ test: env Makefile
 
 # Build a development venv
 .PHONY: env
-env: $(VENV)
+env: $(VENV) $(DIAGRAMS_DIR)
 
 $(VENV):
 	$(VIRTUALENV) $(VENV)
 	$(ACTIVATE) && $(PIP) install -U pip wheel
 	$(ACTIVATE) && $(PIP) install -r $(REQUIREMENTS)
 	$(ACTIVATE) && $(PIP) install -r $(DEV_REQUIREMENTS)
+
+$(DIAGRAMS_DIR):
+	$(MKDIR) $(DIAGRAMS_DIR)
 
 # Clean up the build
 clean:
