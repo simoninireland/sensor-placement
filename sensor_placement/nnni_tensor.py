@@ -22,7 +22,6 @@ import logging
 import numpy
 from datetime import datetime, timedelta
 from joblib import Parallel, delayed
-from multiprocessing import cpu_count
 from sensor_placement import Logger, InterpolationTensor
 
 
@@ -30,52 +29,25 @@ logger = logging.getLogger(Logger)
 
 
 class NNNI(InterpolationTensor):
-    '''The operation can be run in parallel on a multicore
-       machine. The degree of parallelism is given by cores, which may
-       be:
-
-       - 0 to use the maximum number of available cores
-       - +n to use a specific number of cores
-       - -n to leave n cores unused
-
-       There is no benefit to using a degree of parallelism greater
-       than the number of physical cores on the machine. In cases
-       where there are very few cells to compute a smaller amount of
-       parallelism will be used anyway.
-
-    '''
-
-    def __init__(self, points, boundary, xs, ys, voronoi = None, grid = None, data = None, cores = 1):
-        # compute the nunber of cores to use when computing the tensor
-        if cores == 0:
-            # use all available or the number of cells, whichever is smaller
-            self._cores = min(len(points), cpu_count())
-        elif cores < 0:
-            # use fewer than available, down to a minimum of 1
-            self._cores = min(len(points), max(cpu_count() + cores, 1))   # cpu_count() + cores as cores is negative
-        else:
-            # use the number of cores requested, up to the maximum available,
-            # redcuced if there are only a few cells
-            self._cores = min(cores, len(points), cpu_count())
-        logger.info('NNI tensor initialised to use {cores} cores'.format(cores=self._cores))
-
-        # now initialise
-        super().__init__(points, boundary, xs, ys, voronoi=voronoi, grid=grid, data=data)
 
     def buildTensor(self):
         # construct the tensor
+        then = datetime.now()
+
+        # create tensor matrix
         self._tensor = numpy.zeros((max(self._grid['x']) + 1, max(self._grid['y']) + 1, len(self._samples)))
         logger.debug('Tensor created with shape {s}'.format(s=self._tensor.shape))
 
         # populate the tensor
-        now = datetime.now()
-        if self._cores == 1:
+        cores = self.numberOfCores()
+        if cores== 1:
             self._tensorSeq()
         else:
-            self._tensorPar()
-        then = datetime.now()
-        delta = then - now
-        logger.debug(f'Computing tensor took {delta}')
+            self._tensorPar(cores)
+
+        # report time
+        dt = (datetime.now() - then).seconds
+        logger.info(f'Tensor computed in {dt:.2f}s')
 
     def _tensorSeq(self):
         '''Construct the natural nearest neighbour interpolation tensor from a
@@ -84,13 +56,13 @@ class NNNI(InterpolationTensor):
         for (x, y, si, v) in self.iterateWeightsFor():
             self._tensor[x, y, si] = v
 
-    def _tensorPar(self):
+    def _tensorPar(self, cores):
         '''Construct the natural nearest neighbour interpolation tensor from a
         set of samples taken within a boundary and sampled at the given
         grid of interpolation points.'''
 
         # create parallel jobs for each cell
-        with Parallel(n_jobs=self._cores) as processes:
+        with Parallel(n_jobs=cores) as processes:
             # run jobs
             real_cells = list(self._grid['cell'].unique())
             rcs = processes(delayed(lambda c: list(self.iterateWeightsFor([c])))(cell) for cell in real_cells)

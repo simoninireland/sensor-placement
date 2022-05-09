@@ -21,6 +21,7 @@
 import logging
 from itertools import product
 from datetime import date, datetime
+from multiprocessing import cpu_count
 import numpy
 from shapely.geometry import Point, MultiPoint, Polygon
 from shapely.ops import unary_union, voronoi_diagram
@@ -37,9 +38,22 @@ class InterpolationTensor:
     '''The abstract class of interpolation tensors.
 
     The tensor is stored as a three-dimensional array with axes (lon, lat, sample).
+
+    The operation can be run in parallel on a multicore be:
+    machine. The degree of parallelism is given by cores, which may
+
+    - 0 to use the maximum number of available cores
+    - +n to use a specific number of cores
+    - -n to leave n cores unused
+
+    There is no benefit to using a degree of parallelism greater
+    than the number of physical cores on the machine. In cases
+    where there are very few cells to compute a smaller amount of
+    parallelism will be used anyway.
+
     '''
 
-    def __init__(self, points, boundary, xs, ys,
+    def __init__(self, points, boundary, xs, ys, cores = 1,
                  voronoi = None, grid = None, data = None):
         self._samples = points.copy()   # we'll change this if we edit the tensor
         self._boundary = boundary       # shape of overall boundary
@@ -50,6 +64,19 @@ class InterpolationTensor:
         self._tensor = data             # array representing tensor
         self._lastCell = None           # cache of last cell containing a point
 
+        # compute the nunber of cores to use when computing the tensor
+        if cores == 0:
+            # use all available
+            self._cores = cpu_count()
+        elif cores < 0:
+            # use fewer than available, down to a minimum of 1
+            self._cores = max(cpu_count() + cores, 1)   # cpu_count() + cores as cores is negative
+        else:
+            # use the number of cores requested, up to the maximum available
+            self._cores = min(cores, cpu_count())
+        logger.info('Tensor will use up to {cores} core{s}'.format(cores=self._cores,
+                                                                   s='s' if self._cores > 1 else ''))
+
         # construct the elements of the tensor
         if self._voronoi is None:
             self.buildVoronoi()
@@ -57,6 +84,18 @@ class InterpolationTensor:
             self.buildGeometry()
         if self._tensor is None:
             self.buildTensor()
+
+
+    # ---------- Core usage ----------
+
+    def numberOfCores(self):
+        '''Return the number of cores to use in an operation. This is
+        bounded by the number given at creation, and also by the number
+        of cells in the Voronoi diagram (since that's the appropriate granularity
+        for parallelism).'''
+        c = min(self._cores, len(self._voronoi))
+        logger.info(f'Operation using {c} cores')
+        return c
 
 
     # ---------- Voronoi cell construction ----------
