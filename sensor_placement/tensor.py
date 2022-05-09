@@ -42,13 +42,13 @@ class InterpolationTensor:
     def __init__(self, points, boundary, xs, ys,
                  voronoi = None, grid = None, data = None):
         self._samples = points.copy()   # we'll change this if we edit the tensor
-        self._boundary = boundary
-        self._voronoi = None
-        self._xs = xs
-        self._ys = ys
-        self._voronoi = voronoi
-        self._grid = grid
-        self._tensor = data
+        self._boundary = boundary       # shape of overall boundary
+        self._xs = xs                   # list of x axis of interpoolation points
+        self._ys = ys                   # list of y axis of interpoolation points
+        self._voronoi = voronoi         # DataFrame holding Voronboi cells
+        self._grid = grid               # DataFrame mapping points to cells
+        self._tensor = data             # array representing tensor
+        self._lastCell = None           # cache of last cell containing a point
 
         # construct the elements of the tensor
         if self._voronoi is None:
@@ -80,6 +80,7 @@ class InterpolationTensor:
             raise ValueError('At least one point lies on or outside the boundary')
 
         # create the Voronoi cells
+        then = datetime.now()
         logger.debug('Computing Voronoi diagram')
         voronoi_cells = self.voronoiCells(list(self._samples.geometry), self._boundary)
         self._voronoi = GeoDataFrame({'centre': self._samples.geometry,
@@ -102,6 +103,10 @@ class InterpolationTensor:
             boundaries.append(self.voronoiBoundaryOf(neighbours))
         self._voronoi['neighbourhood'] = neighbourhoods
         self._voronoi['boundary'] = boundaries
+
+        # report time
+        dt = (datetime.now()- then).seconds
+        logger.info(f'Created Voronoi diagram in {dt:.2f}s')
 
     def voronoiCells(self, points, boundary):
         '''Compute the Voronoi cells of the points in the given set, clipped
@@ -132,8 +137,8 @@ class InterpolationTensor:
         immediate = self._voronoi[self._voronoi.geometry.intersects(g)].index
         farthestImmediate = max([p.distance(c) for p in self._voronoi.loc[immediate]['centre']])
         neighbours = [s for s in self._voronoi.index if self._voronoi.loc[s].geometry.distance(c) <= farthestImmediate and s != real_cell]
-        logging.debug(f'Neighbours of {real_cell} set to {neighbours}')
 
+        logger.debug(f'Neighbours of {real_cell} set to {neighbours}')
         return neighbours
 
         # we need to buffer the cell slightly to make sure that
@@ -165,6 +170,7 @@ class InterpolationTensor:
         # it as an array might make more sense (and be more compact).
 
         # build the grid
+        then = datetime.now()
         logger.debug('Computing grid')
         self._grid = GeoDataFrame({'x': [i for l in [[j] * len(self._ys) for j in range(len(self._xs))] for i in l],
                                    'y': list(range(len(list(self._ys)))) * len(self._xs),
@@ -188,15 +194,26 @@ class InterpolationTensor:
                 distances.append(self.distanceToSample(pt.geometry, c))
         self._grid['distance'] = distances
 
+        # report time
+        dt = (datetime.now() - then).seconds
+        logger.info(f'Created interpolation grid in {dt:.2f}s')
+
     def cellContaining(self, p):
         '''Return the cell containing the given point, or -1 if
         the point does not lie in a cell.'''
+        if self._lastCell is not None:
+            # check in the last cell, since we usually look at nearby points
+            if self._voronoi.loc[self._lastCell].geometry.intersects(p):
+                return self._lastCell
+
+        # check all cells
         cs = self._voronoi[self._voronoi.geometry.intersects(p)]
         if len(cs) == 0:
             return -1
         else:
             # it's possible that there's multiple containment if a point
             # lies exactly on a cell boundary, in which case we pick one
+            self._lastCell = cs.index[0]
             return cs.index[0]
 
     def distanceToSample(self, p, s):
@@ -431,6 +448,7 @@ class InterpolationTensor:
     def apply(self, samples, clipped = False):
         '''Apply the tensor to the vector of samples, optionally clipping
         the resulting grid to the boundary.'''
+        logger.debug('Applying tensor')
 
         # check type and dimensions
         if not isinstance(samples, numpy.ndarray):
@@ -443,6 +461,7 @@ class InterpolationTensor:
                                                                         m=len(samples)))
 
         # create the result grid
+        then = datetime.now()
         grid = numpy.zeros((self._tensor.shape[0], self._tensor.shape[1]))
 
         # apply the tensor, optimising for sparseness
@@ -464,6 +483,10 @@ class InterpolationTensor:
                     x, y = self._xs[i], self._ys[j]
                     mask[i, j] = not self._boundary.contains(Point(x, y))
             grid = numpy.ma.masked_where(mask, grid, copy=False)
+
+        # report time
+        dt = (datetime.now()- then).seconds
+        logger.info(f'Applied tensor in {dt:.2f}s')
 
         return grid
 
@@ -487,6 +510,7 @@ class InterpolationTensor:
         :param fn: the filename'''
 
         # create the dataset
+        then = datetime.now()
         logger.debug(f'Saving tensor to {fn}')
         root = Dataset(fn, 'w', format='NETCDF4')
 
@@ -558,6 +582,10 @@ class InterpolationTensor:
         # close the file
         root.close()
 
+        # report time
+        dt = (datetime.now()- then).seconds
+        logger.info(f'Saved tensor to {fn} in {dt:.2f}s')
+
     @classmethod
     def load(cls, fn, **kwds):
         '''Load a tensor as an instance of the class from the given NetCDF file.
@@ -567,6 +595,7 @@ class InterpolationTensor:
         :returns: the tensor'''
 
         # open the dataset
+        then = datetime.now()
         cn = cls.__name__
         logger.debug(f'Loading tensor from {fn} (class {cn})')
         root = Dataset(fn, 'r', format='NETCDF4')
@@ -603,5 +632,9 @@ class InterpolationTensor:
 
         # close the file
         root.close()
+
+        # report time
+        dt = (datetime.now()- then).seconds
+        logger.info(f'Loaded tensor to {fn} in {dt:.2f}s')
 
         return t
