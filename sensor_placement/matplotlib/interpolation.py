@@ -29,7 +29,7 @@ from mpl_toolkits.axes_grid1 import make_axes_locatable
 
 def drawGrid(g, xs, ys,
              ax=None, cmap=None, cmap_title=None, norm=None, fontsize=4,
-             include_colorbar=True):
+             include_colorbar=True, include_interpolation=True):
     '''Draw the interpolated values for the given grid.'''
 
     # fill in defaults
@@ -39,12 +39,13 @@ def drawGrid(g, xs, ys,
         cmap = cm.get_cmap('viridis')
     if norm is None:
         norm = Normalize(vmin=0, vmax=g.max())
-
-    # construct a mesh
-    xx, yy = numpy.meshgrid(xs, ys)
+    if not include_interpolation:
+        include_colorbar = False
 
     # create the colours on the mesh
-    ax.pcolormesh(xx, yy, g.T, cmap=cmap, norm=norm)
+    if include_interpolation:
+        xx, yy = numpy.meshgrid(xs, ys)
+        ax.pcolormesh(xx, yy, g.T, cmap=cmap, norm=norm)
     ax.set_aspect(1.0)
 
     # add colorbar
@@ -64,9 +65,9 @@ def drawGrid(g, xs, ys,
 
 def drawInterpolation(tensor, samples,
                       ax=None, cmap=None, cmap_title=None, norm=None, fontsize=4,
-                      include_colorbar=True):
+                      include_colorbar=True, include_interpolation=True):
     '''Draw an interpolated dataset using the given tensor and samples.'''
     g = tensor.apply(samples)
     return drawGrid(g, tensor._xs, tensor._ys,
                     ax=ax, cmap=cmap, cmap_title=cmap_title, norm=norm, fontsize=fontsize,
-                    include_colorbar=include_colorbar)
+                    include_colorbar=include_colorbar, include_interpolation=include_interpolation)
