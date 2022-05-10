@@ -157,3 +157,27 @@ def drawDominantWeightVector(tensor, p, cutoff=0.0,
     # draw vector
     if tensor._tensor[i, j, si] >= cutoff:
         drawWeightVector(tensor, p, s, ax=ax, radius=radius, overwrite=overwrite, color=color)
+
+def drawResolvedVector(tensor, p,
+                       ax=None, radius=None, overwrite=True, color=None):
+    '''Resolve all vectors and draw the resolved summary vector.'''
+
+    # find tensor indices of point
+    xy = list(p.coords)[0]
+    i = tensor._xs.index(xy[0])
+    j = tensor._ys.index(xy[1])
+
+    # find indices of non-zero weights
+    ss = numpy.nonzero(tensor._tensor[i, j, :])[0]
+
+    # resolve vectors by adding the offsets of all components
+    dx, dy = 0.0, 0.0
+    for si in ss:
+        w = tensor._tensor[i, j, si]
+        s = list(tensor._samples.index)[si]
+        q = tensor._samples.loc[s].geometry
+        ddx, ddy = makeVector(p, q, w * radius)
+        dx += ddx
+        dy += ddy
+
+    drawVectorOffset(p, dx, dy, ax=ax, radius=radius,color=color)

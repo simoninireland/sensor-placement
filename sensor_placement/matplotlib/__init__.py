@@ -26,4 +26,5 @@ from .samples import drawSamples, drawVoronoiCells, drawSampleLabels
 from .interpolation import drawGrid, drawInterpolation
 
 # Interpolation vectors
-from .flowfield import makeVector, nearestPointTo, drawVector, drawVectorOffset, drawWeightVector, drawWeightVectors, drawDominantWeightVector
+from .flowfield import makeVector, nearestPointTo, drawVector, drawVectorOffset, \
+    drawWeightVector, drawWeightVectors, drawDominantWeightVector, drawResolvedVector
