@@ -62,7 +62,13 @@ class InterpolationTensor:
         self._voronoi = voronoi         # DataFrame holding Voronboi cells
         self._grid = grid               # DataFrame mapping points to cells
         self._tensor = data             # array representing tensor
-        self._lastCell = None           # cache of last cell containing a point
+
+        # optimisations
+        self._lastCell = None           # cache of the last real cell returned by
+                                        # cellContaining(). If used in a multiprocessing
+                                        # operation this will become the per-process
+                                        # last cell, so the different execution paths
+                                        # will have their own optimising behaviour
 
         # compute the nunber of cores to use when computing the tensor
         if cores == 0:
@@ -216,7 +222,6 @@ class InterpolationTensor:
                                    'geometry': [Point(x, y) for (x, y) in product(self._xs, self._ys)]})
 
         # add the cell containing each point
-        # sd: this needs to be a lot faster -- use Series.apply()?
         cells = []
         for _, pt in self._grid.iterrows():
             cells.append(self.cellContaining(pt.geometry))
@@ -674,6 +679,6 @@ class InterpolationTensor:
 
         # report time
         dt = (datetime.now()- then).seconds
-        logger.info(f'Loaded tensor to {fn} in {dt:.2f}s')
+        logger.info(f'Loaded tensor from {fn} in {dt:.2f}s')
 
         return t
