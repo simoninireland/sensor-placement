@@ -65,6 +65,8 @@ class NNNI(InterpolationTensor):
         with Parallel(n_jobs=cores) as processes:
             # run jobs
             real_cells = list(self._grid['cell'].unique())
+            if -1 in real_cells:
+                real_cells.remove(-1)
             rcs = processes(delayed(lambda c: list(self.iterateWeightsFor([c])))(cell) for cell in real_cells)
 
             # store the computed weights in the tensor
@@ -83,9 +85,11 @@ class NNNI(InterpolationTensor):
         if -1 in grid_grouped.keys():
             del grid_grouped[-1]
 
-        # construct the weights
+        # determine the cells
         if real_cells is None:
             real_cells = grid_grouped.keys()
+
+        # construct the weights
         for real_cell in real_cells:
             logger.debug(f'Computing weights for cell {real_cell}')
 
