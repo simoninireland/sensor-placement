@@ -1,0 +1,16 @@
+# matplotlib styling for figures, print version
+
+figure.dpi: 300
+figure.figsize: 5, 5
+figure.frameon: False
+
+axes.linewidth: 1
+axes.titlesize: 10
+axes.labelsize: 10
+
+lines.linewidth: 0.4
+
+scatter.marker: o
+
+font.family: sans-serif
+font.size: 8
