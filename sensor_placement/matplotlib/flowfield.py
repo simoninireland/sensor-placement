@@ -57,7 +57,7 @@ def nearestPointTo(p, tensor):
 
 
 def drawVectorOffset(p, dx, dy,
-               ax=None, radius=None, color=None):
+                     ax=None, color=None):
     '''Draw a vector with base at p and offsets dx and dy.'''
 
     # fill in defaults
@@ -65,12 +65,10 @@ def drawVectorOffset(p, dx, dy,
         ax = plt.gca()
     if color is None:
         color = 'r'
-    if radius is None:
-        radius = 0.0
 
     # draw the vector
     xy = list(p.coords)[0]
-    ax.arrow(xy[0], xy[1], dx, dy, color=color, linewidth=0.1, width=0.002)
+    ax.arrow(xy[0], xy[1], dx, dy, color=color)  # width=0.002)
 
 
 def drawVector(p, q, w,
@@ -180,4 +178,4 @@ def drawResolvedVector(tensor, p,
         dx += ddx
         dy += ddy
 
-    drawVectorOffset(p, dx, dy, ax=ax, radius=radius,color=color)
+    drawVectorOffset(p, dx, dy, ax=ax, color=color)

@@ -28,7 +28,7 @@ from mpl_toolkits.axes_grid1 import make_axes_locatable
 
 
 def drawGrid(g, xs, ys,
-             ax=None, cmap=None, cmap_title=None, norm=None, fontsize=4,
+             ax=None, cmap=None, cmap_title=None, norm=None, fontsize=None,
              include_colorbar=True, include_interpolation=True):
     '''Draw the interpolated values for the given grid.'''
 
@@ -64,7 +64,7 @@ def drawGrid(g, xs, ys,
 
 
 def drawInterpolation(tensor, samples,
-                      ax=None, cmap=None, cmap_title=None, norm=None, fontsize=4,
+                      ax=None, cmap=None, cmap_title=None, norm=None, fontsize=None,
                       include_colorbar=True, include_interpolation=True):
     '''Draw an interpolated dataset using the given tensor and samples.'''
     g = tensor.apply(samples)

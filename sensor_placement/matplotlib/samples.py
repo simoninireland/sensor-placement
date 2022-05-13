@@ -28,7 +28,7 @@ from mpl_toolkits.axes_grid1 import make_axes_locatable
 
 
 def drawSamples(tensor, samples,
-                ax=None, cmap=None, cmap_title=None, norm=None, fontsize=4,
+                ax=None, cmap=None, cmap_title=None, norm=None, fontsize=None, marker='o',
                 include_sample_labels=True, include_colorbar=True):
     '''Draw raw samples coloured by the given colourmap.'''
 
@@ -46,7 +46,7 @@ def drawSamples(tensor, samples,
         pt = list(p.coords)[0]
         ax.set_xlim([0.0, 1.0])
         ax.set_ylim([0.0, 1.0])
-        ax.plot(pt[0], pt[1], marker='o', color=cmap(norm(samples[i])), markersize=5)
+        ax.plot(pt[0], pt[1], marker=marker, color=cmap(norm(samples[i]))) #, markersize=5)
         if include_sample_labels:
             ax.annotate(f'{i}', (pt[0], pt[1]), xytext=(3, 3), textcoords='offset points', fontsize=fontsize)
 
@@ -66,7 +66,7 @@ def drawSamples(tensor, samples,
 
 
 def drawVoronoiCells(tensor,
-                     ax=None, color='k', linewidth=0.1):
+                     ax=None, color='k', linewidth=None):
     '''Draw sample Voronoi cells.'''
 
     # fill in defaults
@@ -82,7 +82,7 @@ def drawVoronoiCells(tensor,
 
 
 def drawSampleLabels(tensor,
-                     ax=None, marker='x', color='k', markersize=1.0, fontsize=4,
+                     ax=None, marker=None, color='k', markersize=None, fontsize=None,
                      include_sample_labels=True, include_sample_indices=True):
     '''Draw points for the samples, optionally labelled.'''
 
