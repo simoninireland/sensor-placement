@@ -90,6 +90,20 @@ class InterpolationTensor:
             self.buildTensor()
 
 
+    # ---------- Helper methods ----------
+
+    @staticmethod
+    def cosineDistance(v, w):
+        '''Return the cosine distance between two (co)vectors, The
+        (co_vectors must be the same length, for example from the
+        same tensor, from comparable tensors, or from samples or weights
+        resampled after deletion of elements.'''
+        d = numpy.dot(v, w)
+        mag_v = numpy.sqrt(numpy.dot(v, v))
+        mag_w = numpy.sqrt(numpy.dot(w, w))
+        return 1 - d / (mag_v * mag_w)
+
+
     # ---------- Core usage ----------
 
     def limitNumberOfCores(self, c):
