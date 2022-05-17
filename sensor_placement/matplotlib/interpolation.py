@@ -65,9 +65,9 @@ def drawGrid(g, xs, ys,
 
 def drawInterpolation(tensor, samples,
                       ax=None, cmap=None, cmap_title=None, norm=None, fontsize=None,
-                      include_colorbar=True, include_interpolation=True):
+                      masked=True, include_colorbar=True, include_interpolation=True):
     '''Draw an interpolated dataset using the given tensor and samples.'''
-    g = tensor.apply(samples)
+    g = tensor.apply(samples, masked=masked)
     return drawGrid(g, tensor._xs, tensor._ys,
                     ax=ax, cmap=cmap, cmap_title=cmap_title, norm=norm, fontsize=fontsize,
                     include_colorbar=include_colorbar, include_interpolation=include_interpolation)
