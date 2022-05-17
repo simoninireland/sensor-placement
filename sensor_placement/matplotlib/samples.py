@@ -81,7 +81,7 @@ def drawVoronoiCells(tensor,
     return ax
 
 
-def drawSampleLabels(tensor,
+def drawSampleLabels(tensor, ss=None,
                      ax=None, marker=None, color='k', markersize=None, fontsize=None,
                      include_sample_labels=True, include_sample_indices=True):
     '''Draw points for the samples, optionally labelled.'''
@@ -89,9 +89,13 @@ def drawSampleLabels(tensor,
     # fill in defaults
     if ax is None:
         ax = plt.gca()
+    if ss is None:
+        tss = tensor._samples
+    else:
+        tss = tensor._samples.loc[ss]
 
     # draw labels
-    for i, r in tensor._samples.iterrows():
+    for i, r in tss.iterrows():
         # plot marker
         p = r.geometry
         pt = list(p.coords)[0]
