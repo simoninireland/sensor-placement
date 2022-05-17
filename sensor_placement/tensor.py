@@ -73,15 +73,13 @@ class InterpolationTensor:
         # compute the nunber of cores to use when computing the tensor
         if cores == 0:
             # use all available
-            self._cores = cpu_count()
+            self.limitNumberOfCores(cpu_count())
         elif cores < 0:
             # use fewer than available, down to a minimum of 1
-            self._cores = max(cpu_count() + cores, 1)   # cpu_count() + cores as cores is negative
+            self.limitNumberOfCores(max(cpu_count() + cores, 1))   # cpu_count() + cores as cores is negative
         else:
             # use the number of cores requested, up to the maximum available
-            self._cores = min(cores, cpu_count())
-        logger.info('Tensor will use up to {cores} core{s}'.format(cores=self._cores,
-                                                                   s='s' if self._cores > 1 else ''))
+            self.limitNumberOfCores(min(cores, cpu_count()))
 
         # construct the elements of the tensor
         if self._voronoi is None:
@@ -93,6 +91,12 @@ class InterpolationTensor:
 
 
     # ---------- Core usage ----------
+
+    def limitNumberOfCores(self, c):
+        '''Limit the maximum number of cores the tensor will use.'''
+        self._cores = c
+        logger.info('Tensor limited to {cores} core{s}'.format(cores=self._cores,
+                                                               s='s' if self._cores > 1 else ''))
 
     def numberOfCores(self):
         '''Return the number of cores to use in an operation. This is
@@ -122,11 +126,11 @@ class InterpolationTensor:
 
         # check that all the sample points lie within the boundary
         if not self._samples.geometry.within(self._boundary).all():
-            raise ValueError('At least one point lies on or outside the boundary')
+            raise ValueError(f'At least one point lies on or outside the boundary')
 
         # create the Voronoi cells
         then = datetime.now()
-        logger.debug('Computing Voronoi diagram')
+        logger.info('Computing Voronoi diagram')
         voronoi_cells = self.voronoiCells(list(self._samples.geometry), self._boundary)
         self._voronoi = GeoDataFrame({'centre': self._samples.geometry,
                                       'id': self._samples.index,
@@ -186,12 +190,6 @@ class InterpolationTensor:
         logger.debug(f'Neighbours of {real_cell} set to {neighbours}')
         return neighbours
 
-        # we need to buffer the cell slightly to make sure that
-        # acute-angle contacts are caught
-        # cell = self._voronoi.loc[real_cell].geometry.buffer(0.0001)
-        # neighbours = self._voronoi[self._voronoi.geometry.intersects(cell)].index
-        # return list(neighbours.drop([real_cell]))
-
     def voronoiBoundaryOf(self, cells):
         '''Return the boundary of the neighbours of the given cells.'''
         return unary_union(self._voronoi.loc[cells].geometry)
@@ -216,7 +214,7 @@ class InterpolationTensor:
 
         # build the grid
         then = datetime.now()
-        logger.debug('Computing grid')
+        logger.info('Constructing interpolation grid')
         self._grid = GeoDataFrame({'x': [i for l in [[j] * len(self._ys) for j in range(len(self._xs))] for i in l],
                                    'y': list(range(len(list(self._ys)))) * len(self._xs),
                                    'geometry': [Point(x, y) for (x, y) in product(self._xs, self._ys)]})
@@ -649,7 +647,7 @@ class InterpolationTensor:
         samplePoints = list(map(lambda p: Point(p[0], p[1]), zip(root['sample_x'], root['sample_y'])))
         df_points = GeoDataFrame({'geometry': samplePoints},
                                  index=sampleIdx)
-        boundaryPoints = list(map(lambda p: Point(p[1], p[0]), zip(root['boundary_x'], root['boundary_y'])))
+        boundaryPoints = list(map(lambda p: Point(p[0], p[1]), zip(root['boundary_x'], root['boundary_y'])))
         boundaryPoints += [boundaryPoints[-1]]   # close the sequence
         boundary = Polygon(boundaryPoints)
 
@@ -665,6 +663,7 @@ class InterpolationTensor:
                                 'distance': [d[x, y] for (x, y) in product(range(len(xs)), range(len(ys)))]})
 
         # create the tensor
+        logger.info('Instanciating tensor as {cn}'.format(cn=cls.__name__))
         t = cls(df_points, boundary,
                 xs, ys,
                 grid=df_grid,
