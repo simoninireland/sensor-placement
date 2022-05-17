@@ -26,7 +26,6 @@ import matplotlib
 import matplotlib.pyplot as plt
 from matplotlib import cm
 from matplotlib.colors import Normalize
-from mpl_toolkits.axes_grid1 import make_axes_locatable
 
 
 # ---------- Support functions ----------
@@ -155,6 +154,7 @@ def drawDominantWeightVector(tensor, p, cutoff=0.0,
     # draw vector
     if tensor._tensor[i, j, si] >= cutoff:
         drawWeightVector(tensor, p, s, ax=ax, radius=radius, overwrite=overwrite, color=color)
+
 
 def drawResolvedVector(tensor, p,
                        ax=None, radius=None, overwrite=True, color=None):

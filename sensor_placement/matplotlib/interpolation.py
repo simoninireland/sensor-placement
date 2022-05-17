@@ -28,7 +28,7 @@ from mpl_toolkits.axes_grid1 import make_axes_locatable
 
 
 def drawGrid(g, xs, ys,
-             ax=None, cmap=None, cmap_title=None, norm=None, fontsize=None,
+             ax=None, cmap=None, cmap_title=None, norm=None, format=None,
              include_colorbar=True, include_interpolation=True):
     '''Draw the interpolated values for the given grid.'''
 
@@ -45,22 +45,25 @@ def drawGrid(g, xs, ys,
     # create the colours on the mesh
     if include_interpolation:
         xx, yy = numpy.meshgrid(xs, ys)
-        ax.pcolormesh(xx, yy, g.T, cmap=cmap, norm=norm)
+        mp = ax.pcolormesh(xx, yy, g.T, cmap=cmap, norm=norm)
     ax.set_aspect(1.0)
 
     # add colorbar
     if include_colorbar:
-        divider = make_axes_locatable(ax)
-        cax = divider.append_axes("right", 0.1, pad=0.1, sharex=ax)
-        matplotlib.colorbar.Colorbar(ax=cax, cmap=cmap, norm=norm)
-        cax.tick_params(labelsize=fontsize)
-        if cmap_title is not None:
-            cax.set_title(cmap_title, fontsize=fontsize)
-    else:
-        cax = None
+        cbar = plt.colorbar(mappable=mp,
+                            ax=ax, cmap=cmap, norm=norm, format=format,
+                            fraction=0.1, shrink=0.55)
 
-    # return the main and colorbar axes, and the norm used
-    return ax, cax, norm
+        # ticks at the extrema, and at 0 if there's a change of sign
+        if norm.vmin * norm.vmax < 0:
+            cbar.set_ticks([norm.vmin, 0.0, norm.vmax])
+        else:
+            cbar.set_ticks([norm.vmin, norm.vmax])
+    else:
+        cbar = None
+
+    # return the main axes, colorbar, and the norm used
+    return ax, cbar, norm
 
 
 def drawInterpolation(tensor, samples,
