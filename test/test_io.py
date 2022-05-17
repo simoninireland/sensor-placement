@@ -35,16 +35,16 @@ class IOTest(unittest.TestCase):
 
     def setUp( self ):
         '''Set up with a temporary file.'''
-        tf = NamedTemporaryFile()
-        tf.close()
-        self._fn = tf.name
-        #self._fn = 'test.nc'
+        #tf = NamedTemporaryFile()
+        #tf.close()
+        #self._fn = tf.name
+        self._fn = 'test.nc'
 
     def tearDown( self ):
         '''Delete the temporary file.'''
         try:
-            os.remove(self._fn)
-            # pass
+            #os.remove(self._fn)
+            pass
         except OSError:
             pass
 
@@ -66,15 +66,18 @@ class IOTest(unittest.TestCase):
 
     def testLoadAndSave(self):
         '''Test we can load and save a tensor.'''
+
+        # use an asymmetric region and samnple points to check
+        # for rotations
         boundary = Polygon([Point(0.0, 0.0),
                             Point(0.0, 1.0),
-                            Point(1.0, 1.0),
-                            Point(1.0, 0.0)])
+                            Point(0.5, 1.0),
+                            Point(0.5, 0.0)])
         df_points = GeoDataFrame([Point(0.25, 0.25),
-                                  Point(0.75, 0.25),
-                                  Point(0.75, 0.75),
-                                  Point(0.25, 0.75)], columns=['geometry'])
-        xs = numpy.linspace(0.0, 1.0, num=10)
+                                  Point(0.45, 0.45),
+                                  Point(0.45, 0.75),
+                                  Point(0.1, 0.3)], columns=['geometry'])
+        xs = numpy.linspace(0.0, 0.5, num=10)
         ys = numpy.linspace(0.0, 1.0, num=20)
 
         # create and save tensor
