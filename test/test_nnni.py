@@ -251,6 +251,7 @@ class NNNITest(unittest.TestCase):
         self.assertCountEqual(set(t._voronoi.loc[4].neighbourhood), set([1, 3, 4]))
 
         # points in the right cells
+        self.assertNotIn(0, set(t._grid['cell']))
         self.assertNotIn(2, set(t._grid['cell']))
         for x in range(int(len(xs) * 0.5)):
             for y in range(int(len(ys) * 0.5)):
@@ -368,6 +369,222 @@ class NNNITest(unittest.TestCase):
                 ps, qs = list(p.coords)[0], list(q.coords)[0]
                 h = numpy.sqrt((qs[0] - ps[0]) ** 2 + (qs[1] - ps[1]) ** 2)
                 self.assertEqual(h, d)
+
+    def testRemoveMappingSingle(self):
+        '''Test we can generate the removal map of a single sample.'''
+        boundary = Polygon([Point(0.0, 0.0),
+                            Point(0.0, 1.0),
+                            Point(1.0, 1.0),
+                            Point(1.0, 0.0)])
+        df_points = GeoDataFrame([Point(0.25, 0.25),
+                                  Point(0.75, 0.25),
+                                  Point(0.5, 0.5),
+                                  Point(0.75, 0.75),
+                                  Point(0.25, 0.75)], columns=['geometry'])
+        xs = numpy.linspace(0.0, 1.0, num=10)
+        ys = numpy.linspace(0.0, 1.0, num=20)
+
+        t = NNNI(df_points, boundary, xs, ys)
+
+        m = t.remapSamplesOnRemoval([1])
+        print(m)
+        self.assertEqual(len(m), len(df_points) - 1)
+        self.assertCountEqual(m, [0, 2, 3, 4])
+
+    def testRemoveMappingMultiple(self):
+        '''Test we can generate the removal map of a block of samples.'''
+        boundary = Polygon([Point(0.0, 0.0),
+                            Point(0.0, 1.0),
+                            Point(1.0, 1.0),
+                            Point(1.0, 0.0)])
+        df_points = GeoDataFrame([Point(0.25, 0.25),
+                                  Point(0.75, 0.25),
+                                  Point(0.5, 0.5),
+                                  Point(0.75, 0.75),
+                                  Point(0.25, 0.75)], columns=['geometry'])
+        xs = numpy.linspace(0.0, 1.0, num=10)
+        ys = numpy.linspace(0.0, 1.0, num=20)
+
+        t = NNNI(df_points, boundary, xs, ys)
+
+        m = t.remapSamplesOnRemoval([1, 3])
+        self.assertEqual(len(m), len(df_points) - 2)
+        self.assertCountEqual(m, [0, 2, 4])
+
+    def testRemoveMappingMultipleUnorder(self):
+        '''Test we can generate the removal map of a block of samples provided out-of-order.'''
+        boundary = Polygon([Point(0.0, 0.0),
+                            Point(0.0, 1.0),
+                            Point(1.0, 1.0),
+                            Point(1.0, 0.0)])
+        df_points = GeoDataFrame([Point(0.25, 0.25),
+                                  Point(0.75, 0.25),
+                                  Point(0.5, 0.5),
+                                  Point(0.75, 0.75),
+                                  Point(0.25, 0.75)], columns=['geometry'])
+        xs = numpy.linspace(0.0, 1.0, num=10)
+        ys = numpy.linspace(0.0, 1.0, num=20)
+
+        t = NNNI(df_points, boundary, xs, ys)
+
+        m = t.remapSamplesOnRemoval([3, 2])
+        self.assertEqual(len(m), len(df_points) - 2)
+        self.assertCountEqual(m, [0, 1, 4])
+
+    def testRemoveMappingFirstLast(self):
+        '''Test we can generate the removal map of the first and last samples.'''
+        boundary = Polygon([Point(0.0, 0.0),
+                            Point(0.0, 1.0),
+                            Point(1.0, 1.0),
+                            Point(1.0, 0.0)])
+        df_points = GeoDataFrame([Point(0.25, 0.25),
+                                  Point(0.75, 0.25),
+                                  Point(0.5, 0.5),
+                                  Point(0.75, 0.75),
+                                  Point(0.25, 0.75)], columns=['geometry'])
+        xs = numpy.linspace(0.0, 1.0, num=10)
+        ys = numpy.linspace(0.0, 1.0, num=20)
+
+        t = NNNI(df_points, boundary, xs, ys)
+
+        m = t.remapSamplesOnRemoval([0, 4])
+        self.assertEqual(len(m), len(df_points) - 2)
+        self.assertCountEqual(m, [1, 2, 3])
+
+    def testRemoveMappingAll(self):
+        '''Test we can generate the removal map of all the samples.'''
+        boundary = Polygon([Point(0.0, 0.0),
+                            Point(0.0, 1.0),
+                            Point(1.0, 1.0),
+                            Point(1.0, 0.0)])
+        df_points = GeoDataFrame([Point(0.25, 0.25),
+                                  Point(0.75, 0.25),
+                                  Point(0.5, 0.5),
+                                  Point(0.75, 0.75),
+                                  Point(0.25, 0.75)], columns=['geometry'])
+        xs = numpy.linspace(0.0, 1.0, num=10)
+        ys = numpy.linspace(0.0, 1.0, num=20)
+
+        t = NNNI(df_points, boundary, xs, ys)
+
+        m = t.remapSamplesOnRemoval([0, 4, 2, 3, 1])
+        self.assertEqual(len(m), 0)
+
+    def testRemoveMappingNone(self):
+        '''Test we can generate the removal map for none of the samples.'''
+        boundary = Polygon([Point(0.0, 0.0),
+                            Point(0.0, 1.0),
+                            Point(1.0, 1.0),
+                            Point(1.0, 0.0)])
+        df_points = GeoDataFrame([Point(0.25, 0.25),
+                                  Point(0.75, 0.25),
+                                  Point(0.5, 0.5),
+                                  Point(0.75, 0.75),
+                                  Point(0.25, 0.75)], columns=['geometry'])
+        xs = numpy.linspace(0.0, 1.0, num=10)
+        ys = numpy.linspace(0.0, 1.0, num=20)
+
+        t = NNNI(df_points, boundary, xs, ys)
+
+        m = t.remapSamplesOnRemoval([])
+        self.assertEqual(len(m), len(df_points))
+        self.assertCountEqual(m, list(range(len(df_points))))
+
+    def testResample(self):
+        '''Test we can resample..'''
+        boundary = Polygon([Point(0.0, 0.0),
+                            Point(0.0, 1.0),
+                            Point(1.0, 1.0),
+                            Point(1.0, 0.0)])
+        df_points = GeoDataFrame([Point(0.25, 0.25),
+                                  Point(0.75, 0.25),
+                                  Point(0.5, 0.5),
+                                  Point(0.75, 0.75),
+                                  Point(0.25, 0.75)], columns=['geometry'])
+        xs = numpy.linspace(0.0, 1.0, num=10)
+        ys = numpy.linspace(0.0, 1.0, num=20)
+
+        t = NNNI(df_points, boundary, xs, ys)
+
+        toRemove = [1, 3]
+        ss2 = [0, 2, 4]                        # samples match "after" indices
+        m = t.resampleOnRemoval(toRemove)
+        self.assertEqual(len(m), len(df_points) - len(toRemove))
+        ss3 = numpy.zeros((len(df_points),))
+        ss3[m] = ss2
+        self.assertCountEqual(ss3, [0, 0.0, 2, 0.0, 4])
+
+    def testResampleUnordered(self):
+        '''Test we can resample out-of-order.'''
+        boundary = Polygon([Point(0.0, 0.0),
+                            Point(0.0, 1.0),
+                            Point(1.0, 1.0),
+                            Point(1.0, 0.0)])
+        df_points = GeoDataFrame([Point(0.25, 0.25),
+                                  Point(0.75, 0.25),
+                                  Point(0.5, 0.5),
+                                  Point(0.75, 0.75),
+                                  Point(0.25, 0.75)], columns=['geometry'])
+        xs = numpy.linspace(0.0, 1.0, num=10)
+        ys = numpy.linspace(0.0, 1.0, num=20)
+
+        t = NNNI(df_points, boundary, xs, ys)
+
+        toRemove = [3, 1]
+        ss2 = [0, 2, 4]                        # samples match "after" indices
+        m = t.resampleOnRemoval(toRemove)
+        self.assertEqual(len(m), len(df_points) - len(toRemove))
+        ss3 = numpy.zeros((len(df_points),))
+        ss3[m] = ss2
+        self.assertCountEqual(ss3, [0, 0.0, 2, 0.0, 4])
+
+    def testResampleNone(self):
+        '''Test we can "resample" after no removals.'''
+        boundary = Polygon([Point(0.0, 0.0),
+                            Point(0.0, 1.0),
+                            Point(1.0, 1.0),
+                            Point(1.0, 0.0)])
+        df_points = GeoDataFrame([Point(0.25, 0.25),
+                                  Point(0.75, 0.25),
+                                  Point(0.5, 0.5),
+                                  Point(0.75, 0.75),
+                                  Point(0.25, 0.75)], columns=['geometry'])
+        xs = numpy.linspace(0.0, 1.0, num=10)
+        ys = numpy.linspace(0.0, 1.0, num=20)
+
+        t = NNNI(df_points, boundary, xs, ys)
+
+        toRemove = []
+        ss2 = [0, 1, 2, 3, 4]                    # samples match "after" indices
+        m = t.resampleOnRemoval(toRemove)
+        self.assertEqual(len(m), len(df_points) - len(toRemove))
+        ss3 = numpy.zeros((len(df_points),))
+        ss3[m] = ss2
+        self.assertCountEqual(ss3, [0, 1, 2, 3, 4])
+
+    def testResampleFirstLast(self):
+        '''Test we can resample after removing the first and last points.'''
+        boundary = Polygon([Point(0.0, 0.0),
+                            Point(0.0, 1.0),
+                            Point(1.0, 1.0),
+                            Point(1.0, 0.0)])
+        df_points = GeoDataFrame([Point(0.25, 0.25),
+                                  Point(0.75, 0.25),
+                                  Point(0.5, 0.5),
+                                  Point(0.75, 0.75),
+                                  Point(0.25, 0.75)], columns=['geometry'])
+        xs = numpy.linspace(0.0, 1.0, num=10)
+        ys = numpy.linspace(0.0, 1.0, num=20)
+
+        t = NNNI(df_points, boundary, xs, ys)
+
+        toRemove = [4, 0]
+        ss2 = [1, 2, 3]                        # samples match "after" indices
+        m = t.resampleOnRemoval(toRemove)
+        self.assertEqual(len(m), len(df_points) - len(toRemove))
+        ss3 = numpy.zeros((len(df_points),))
+        ss3[m] = ss2
+        self.assertCountEqual(ss3, [0.0, 1, 2, 3, 0.0])
 
 
 if __name__ == '__main__':
