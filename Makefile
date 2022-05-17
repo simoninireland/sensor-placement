@@ -16,7 +16,8 @@ TEXT =
 NOTEBOOKS =  \
 	sensor-placement.ipynb \
 	datacheck.ipynb \
-	simple.ipynb
+	simple.ipynb \
+	diagrams.ipynb
 
 # Source code
 SOURCE = \
@@ -52,8 +53,9 @@ SCRIPTS = \
 
 # ----- Data -----
 
-# Data directory
+# Data files and directories
 DATASETS_DIR = datasets
+DIAGRAMS_DIR = diagrams
 CREDENTIALS = ./credentials
 
 # CEH-GEAR monthly
@@ -86,9 +88,6 @@ BIBLIOGRAPHY = bibliography.bib
 
 # License
 LICENSE = LICENSE
-
-# Diagrams directory
-DIAGRAMS_DIR = diagrams
 
 
 # ----- Tools -----
@@ -198,7 +197,7 @@ test: env Makefile
 
 # Build a development venv
 .PHONY: env
-env: $(VENV) $(DIAGRAMS_DIR)
+env: $(VENV) $(DIAGRAMS_DIR) $(DATASETS_DIR)
 
 $(VENV):
 	$(VIRTUALENV) $(VENV)
@@ -206,16 +205,20 @@ $(VENV):
 	$(ACTIVATE) && $(PIP) install -r $(REQUIREMENTS)
 	$(ACTIVATE) && $(PIP) install -r $(DEV_REQUIREMENTS)
 
+$(DATASETS_DIR):
+	$(MKDIR) $(DATASETS_DIR)
+
 $(DIAGRAMS_DIR):
 	$(MKDIR) $(DIAGRAMS_DIR)
 
 # Clean up the build
 clean:
+	$(RM) $(DIAGRAMS_DIR)/*
 
 # Clean up everything, including the venv and the datasets (which are *very* expensive
 # to re-download)
 reallyclean: clean
-	$(RM) $(VENV) $(DATASETS_DIR) $(CEDA_CA) $(CEDA_CA_ROOTS) $(CEDA_CERTIFICATE)
+	$(RM) $(VENV) $(DATASETS_DIR) $(DIAGRAMS_DIR) $(CEDA_CA) $(CEDA_CA_ROOTS) $(CEDA_CERTIFICATE)
 
 
 # ----- Usage -----
@@ -228,7 +231,7 @@ Maintenance:
    make env          create a virtual environment
    make datasets     download all the datasets (long!)
    make test         run the unit test suite
-   make clean        clean-up the build
+   make clean        clean-up the build (mainly the diagrams)
    make reallyclean  delete the venv and all the datasets as well
 
 endef
