@@ -274,6 +274,14 @@ class InterpolationTensor:
 
     # ---------- Tensor editing ----------
 
+    def sampleIndex(self, s):
+        '''Return the index of the given sample.'''
+        return self.sampleIndices([s])[0]
+
+    def sampleIndices(self, ss):
+        '''Return the indices of the given samples.'''
+        return [self._samples.index.get_loc(s) for s in ss]
+
     def removeSample(self, s):
         '''Remove sample from the tensor.'''
         logging.debug(f'Removing cell {s}')
@@ -285,8 +293,8 @@ class InterpolationTensor:
         pre_boundary = self.voronoiBoundaryOf(pre_neighbours + [s])
 
         # remove the sample from the data structures
+        i = self.sampleIndex(s)
         self._samples.drop([s], axis=0, inplace=True)
-        i = self._voronoi.index.get_loc(s)
         self._tensor = numpy.delete(self._tensor, i, axis=2)
         self._voronoi.drop([s], axis=0, inplace=True)
 
@@ -331,8 +339,8 @@ class InterpolationTensor:
         logging.debug(f'Affected remaining cells {pre_neighbours}')
 
         # remove samples from the data structures
+        sis = self.sampleIndices(ss)
         self._samples.drop(ss, axis=0, inplace=True)            # sample points
-        sis = [self._voronoi.index.get_loc(s) for s in ss]
         self._tensor = numpy.delete(self._tensor, sis, axis=2)  # tensor sample planes
         self._voronoi.drop(ss, axis=0, inplace=True)
 
@@ -359,6 +367,75 @@ class InterpolationTensor:
             logging.debug(f'Computing weights for {c}')
             for (x, y, si, v) in self.iterateWeightsFor([c]):
                 self._tensor[x, y, si] = v
+
+    def remapSamplesOnRemoval(self, ss):
+        '''Return the indices of new samples in a sample array after the removal
+        of the given samples. This is the same map used to remap weights.'''
+
+        # bail out if there are no removals
+        if len(ss) == 0:
+            return list(range(len(self._voronoi)))
+
+        # get the indices of the points to be removed
+        sis = [self._voronoi.index.get_loc(s) for s in ss]
+        sis.sort()
+
+        # construct the permutation mapping
+        selector = []             # indices of "before" samples in "after" sample order
+        i = 0                     # index of current "before" sample
+        si = 0                    # index of current removal
+        for _ in range(len(self._voronoi)):
+            if i < sis[si]:
+                # no intervening removal, use current index
+                selector.append(i)
+            elif i == sis[si]:
+                # we've hit a removal, skip
+                si += 1
+
+                # if that's all the removals, jump out
+                if si == len(sis):
+                    selector.extend(range(i + 1, len(self._voronoi)))
+                    break
+            i += 1
+
+        return selector
+
+    def resampleOnRemoval(self, ss, ss2):
+        '''Expand the array of samples (or weights) ss2 assuming that
+        they are derived from the tensor after the removal of the samples ss.
+        This creates an array that has the same length as a sample (or weight)
+        array for this tensor, but with zeros in the positions trhat were removed.
+        This allows "before and after" comparisons on sample (or weight) vectors
+        having tghe same length and comparable values.'''
+
+        # bail out if there are no removals
+        if len(ss) == 0:
+            return ss2
+
+        # get the indices of the points assumed removed
+        sis = self.sampleIndices(ss)
+        sis.sort()
+
+        # expand the samples/weights in ss2 with zeros at the removed indices
+        ss3 = []
+        j = 0
+        si = 0
+        for i in range(len(self._samples)):
+            if i < sis[si]:
+                # no intervening removal, use current index
+                ss3.append(ss2[j])
+                j += 1
+            elif i == sis[si]:
+                # we've hit a removal, add a zero
+                ss3.append(0.0)
+                si += 1
+
+                # if that's all the removals, jump out
+                if si == len(sis):
+                    ss3.extend([ss2[k] for k in range(j, len(ss2))])
+                    break
+
+        return ss3
 
     def addSample(self, x, y):
         '''Add a sample at the given point to the tensor.'''
