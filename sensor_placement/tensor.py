@@ -370,14 +370,35 @@ class InterpolationTensor:
 
     def remapSamplesOnRemoval(self, ss):
         '''Return the indices of new samples in a sample array after the removal
-        of the given samples. This is the same map used to remap weights.'''
+        of the given samples. This canm be used the extract remaining samples from
+        a sample vector:
+
+        .. code-block:: python
+
+           # do some computation with a tensor against some samples
+           g1 = tensor1.apply(samples1)
+
+           # remove the given samples from tensor1
+           toRemove = [1, 56, 36]
+           tensor2 = tensor1.removeSamples(toRemove)
+
+           # extract the samples that remain from original samples
+           remaining = tensor1.remapSamplesOnRemnval(toRemove)
+           samples2 = samples1[remaining]
+
+           # use the remaining old samples with the new tensor
+           g2 = tensor2.applt(samples2)
+
+
+        The same mapping can be applied to weights if desired.
+        '''
 
         # bail out if there are no removals
         if len(ss) == 0:
-            return list(range(len(self._voronoi)))
+            return list(range(len(self._samples)))
 
         # get the indices of the points to be removed
-        sis = [self._voronoi.index.get_loc(s) for s in ss]
+        sis = self.sampleIndices(ss)
         sis.sort()
 
         # construct the permutation mapping
@@ -400,42 +421,62 @@ class InterpolationTensor:
 
         return selector
 
-    def resampleOnRemoval(self, ss, ss2):
-        '''Expand the array of samples (or weights) ss2 assuming that
-        they are derived from the tensor after the removal of the samples ss.
-        This creates an array that has the same length as a sample (or weight)
-        array for this tensor, but with zeros in the positions trhat were removed.
-        This allows "before and after" comparisons on sample (or weight) vectors
-        having tghe same length and comparable values.'''
+    def resampleOnRemoval(self, ss):
+        '''Return the indices of the samples remaining in a sample (or weight)
+        vector derived from the tensor after the removal of the samples ss.
+        This can be used to re-create a sample vector from a reduced vector,
+        with samples in the correct positions:
+
+        .. code-block:: python
+
+           # remove the given samples from tensor1
+           toRemove = [1, 56, 36]
+           tensor2 = tensor1.removeSamples(toRemove)
+
+           # get some weights from tensor1
+           w1 = tensor1._tensor[x, y, :]
+
+           # get the equivalent weights from tensor2
+           w2 = tensor2._tensor[x, y, :]
+
+           # resample w2 so it matches w1 in length
+           rs = tensor1.resampleOnRemoval(toRemove)
+           w3 = numpy.zeros((len(w1),))    # a vector of the right length with zeros
+           w3[rs] = w2                     # replace the non-zero elements
+
+           # compare the weight vectors
+           diff = w1 - w3
+
+        The same approach works with sample vectors.
+        '''
 
         # bail out if there are no removals
         if len(ss) == 0:
-            return ss2
+            return list(range(len(self._samples)))
 
         # get the indices of the points assumed removed
         sis = self.sampleIndices(ss)
         sis.sort()
 
-        # expand the samples/weights in ss2 with zeros at the removed indices
-        ss3 = []
+        # construct the selector from the reduced samples
+        selector = []
         j = 0
         si = 0
         for i in range(len(self._samples)):
             if i < sis[si]:
-                # no intervening removal, use current index
-                ss3.append(ss2[j])
+                # no intervening removal, use curent index
+                selector.append(i)
                 j += 1
             elif i == sis[si]:
-                # we've hit a removal, add a zero
-                ss3.append(0.0)
+                # we've hit a removal, skip
                 si += 1
 
                 # if that's all the removals, jump out
                 if si == len(sis):
-                    ss3.extend([ss2[k] for k in range(j, len(ss2))])
+                    selector.extend(list(range(i + 1, len(self._samples))))
                     break
 
-        return ss3
+        return selector
 
     def addSample(self, x, y):
         '''Add a sample at the given point to the tensor.'''
