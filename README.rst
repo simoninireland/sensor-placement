@@ -36,13 +36,15 @@ accounts. These are:
 - The `Centre for Environmental Data Analysis <https://data.ceda.ac.uk>`_
 
 Once you have created usernames and passwords for these sites, copy
-the file ./credentials.example to ./credentials, and edit it to insert
-your credentials in the appropriate places. Note that this is a shell
-script, not Python code. Also be careful to put the usernames and
-passwords within single quotes to avoid problems with special characters.
+the file ``./credentials.example`` to ``./credentials``, and edit it
+to insert your values in the appropriate places. Note that this
+is a shell script, not Python code. Also be careful to put the
+usernames and passwords within single quotes to avoid problems with
+special characters.
 
-Don't commit ./credentials to version control! -- it's a breach of the
-licensing terms to share your credentials with others.
+Don't commit ``./credentials`` to version control! -- it's a breach of
+the licensing terms (as well as bad practice) to share your
+passwords with others.
 
 You can now download the datasets by running:
 
@@ -62,8 +64,8 @@ You can then access the notebooks by running:
    make live
 
 which will open a notebook in a web browser. You'll probably want to
-start by looking at ./datacheck.ipynb to make sure the data has come
-down properly.
+start by looking at ``./datacheck.ipynb`` to make sure the data has
+come down properly.
 
 If you want to start again for any reason, you can clean-up the build
 by running:
