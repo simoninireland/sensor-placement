@@ -586,6 +586,25 @@ class NNNITest(unittest.TestCase):
         ss3[m] = ss2
         self.assertCountEqual(ss3, [0.0, 1, 2, 3, 0.0])
 
+    def testNearest(self):
+        '''Test we can extract the interpolation point nearest an arbitrary one.'''
+        boundary = Polygon([Point(0.0, 0.0),
+                            Point(0.0, 1.0),
+                            Point(1.0, 1.0),
+                            Point(1.0, 0.0)])
+        df_points = GeoDataFrame([Point(0.25, 0.25),
+                                  Point(0.75, 0.25),
+                                  Point(0.5, 0.5),
+                                  Point(0.75, 0.75),
+                                  Point(0.25, 0.75)], columns=['geometry'])
+        xs = numpy.linspace(0.0, 1.0, num=10)
+        ys = numpy.linspace(0.0, 1.0, num=20)
+
+        t = NNNI(df_points, boundary, xs, ys)
+
+        p = t.nearestPointTo(0.26, 0.36)
+        self.assertIn(p.coords[0][0], xs)
+        self.assertIn(p.coords[0][1], ys)
 
 if __name__ == '__main__':
     unittest.main()

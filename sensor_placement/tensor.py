@@ -24,7 +24,7 @@ from datetime import date, datetime
 from multiprocessing import cpu_count
 import numpy
 from shapely.geometry import Point, MultiPoint, Polygon
-from shapely.ops import unary_union, voronoi_diagram
+from shapely.ops import unary_union, voronoi_diagram, nearest_points
 from pandas import Series
 from geopandas import GeoDataFrame
 from netCDF4 import Dataset
@@ -606,6 +606,11 @@ class InterpolationTensor:
     def weights(self, x, y):
         '''Return a vector of tensor weights at the given point.'''
         return self._tensor[x, y, :]
+
+    def nearestPointTo(self, x, y):
+        '''Return the interpolation point nearest to the given point.'''
+        cloud = MultiPoint(list(self._grid.geometry))
+        return nearest_points(cloud, Point(x, y))[0]
 
 
     # ---------- Applying the tensor ----------
