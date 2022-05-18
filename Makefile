@@ -20,10 +20,6 @@
 
 # ----- Sources -----
 
-# Text
-INDEX =
-TEXT =
-
 # Notebooks
 NOTEBOOKS =  \
 	sensor-placement.ipynb \
