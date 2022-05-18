@@ -40,10 +40,10 @@ SOURCE = \
 	sensor_placement/data/uk_epa.py \
 	sensor_placement/data/sepa.py \
 	sensor_placement/data/ceda.py \
-	sensor_palcement/folium/__init__.py \
-	sensor_palcement/folium/style.py \
-	sensor_palcement/folium/interpolation.py \
-	sensor_palcement/folium/samples.py \
+	sensor_placement/folium/__init__.py \
+	sensor_placement/folium/style.py \
+	sensor_placement/folium/interpolation.py \
+	sensor_placement/folium/samples.py \
 	sensor_placement/matplotlib/__init__.py \
 	sensor_placement/matplotlib/tiles.py \
 	sensor_placement/matplotlib/samples.py \
