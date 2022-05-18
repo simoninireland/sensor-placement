@@ -24,12 +24,11 @@ import matplotlib
 import matplotlib.pyplot as plt
 from matplotlib import cm
 from matplotlib.colors import Normalize
-from mpl_toolkits.axes_grid1 import make_axes_locatable
 
 
-def drawSamples(tensor, samples,
-                ax=None, cmap=None, cmap_title=None, norm=None, fontsize=None, marker='o',
-                include_sample_labels=True, include_colorbar=True):
+def drawRawSamples(tensor, samples,
+                   ax=None, cmap=None, norm=None, fontsize=None, marker='o', markersize=None,
+                   include_sample_labels=True, include_colorbar=True):
     '''Draw raw samples coloured by the given colourmap.'''
 
     # fill in default
@@ -46,23 +45,28 @@ def drawSamples(tensor, samples,
         pt = list(p.coords)[0]
         ax.set_xlim([0.0, 1.0])
         ax.set_ylim([0.0, 1.0])
-        ax.plot(pt[0], pt[1], marker=marker, color=cmap(norm(samples[i]))) #, markersize=5)
+        ax.plot(pt[0], pt[1], marker=marker, markersize=markersize, color=cmap(norm(samples[i])))
         if include_sample_labels:
-            ax.annotate(f'{i}', (pt[0], pt[1]), xytext=(3, 3), textcoords='offset points', fontsize=fontsize)
+            ax.annotate(f'{i}', (pt[0], pt[1]),
+                        xytext=(3, 3), textcoords='offset points',
+                        fontsize=fontsize)
 
     # add colorbar
     if include_colorbar:
-        divider = make_axes_locatable(ax)
-        cax = divider.append_axes("right", 0.1, pad=0.1, sharex=ax)
-        matplotlib.colorbar.Colorbar(ax=cax, cmap=cmap, norm=norm)
-        cax.tick_params(labelsize=fontsize)
-        if cmap_title is not None:
-            cax.set_title(cmap_title, fontsize=fontsize)
-    else:
-        cax = None
+        cbar = plt.colorbar(mappable=mp,
+                            ax=ax, cmap=cmap, norm=norm, format=format,
+                            fraction=0.1, shrink=0.55)
 
-    # return the main and colorbar axes
-    return ax, cax
+        # ticks at the extrema, and at 0 if there's a change of sign
+        if norm.vmin * norm.vmax < 0:
+            cbar.set_ticks([norm.vmin, 0.0, norm.vmax])
+        else:
+            cbar.set_ticks([norm.vmin, norm.vmax])
+    else:
+        cbar = None
+
+    # return the main axes and the colorbar
+    return ax, cbar
 
 
 def drawVoronoiCells(tensor,
@@ -78,6 +82,7 @@ def drawVoronoiCells(tensor,
         x, y = tensor._voronoi['geometry'].iloc[i].exterior.xy
         ax.plot(x, y, color=color, linewidth=linewidth)
 
+    # return the axes
     return ax
 
 
@@ -114,4 +119,5 @@ def drawSampleLabels(tensor, ss=None,
                 l = f'({n})'
             ax.annotate(l, (pt[0], pt[1]), xytext=(2, 2), textcoords='offset points', fontsize=fontsize)
 
+    # return the axes
     return ax

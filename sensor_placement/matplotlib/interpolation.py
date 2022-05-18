@@ -24,11 +24,10 @@ import matplotlib
 import matplotlib.pyplot as plt
 from matplotlib import cm
 from matplotlib.colors import Normalize
-from mpl_toolkits.axes_grid1 import make_axes_locatable
 
 
 def drawGrid(g, xs, ys,
-             ax=None, cmap=None, cmap_title=None, norm=None, format=None,
+             ax=None, cmap=None, norm=None, format=None, shrink=1.0,
              include_colorbar=True, include_interpolation=True):
     '''Draw the interpolated values for the given grid.'''
 
@@ -52,7 +51,7 @@ def drawGrid(g, xs, ys,
     if include_colorbar:
         cbar = plt.colorbar(mappable=mp,
                             ax=ax, cmap=cmap, norm=norm, format=format,
-                            fraction=0.1, shrink=0.55)
+                            fraction=0.1, shrink=shrink)
 
         # ticks at the extrema, and at 0 if there's a change of sign
         if norm.vmin * norm.vmax < 0:
@@ -67,10 +66,10 @@ def drawGrid(g, xs, ys,
 
 
 def drawInterpolation(tensor, samples,
-                      ax=None, cmap=None, cmap_title=None, norm=None, fontsize=None,
+                      ax=None, cmap=None, norm=None, format=None, shrink=1.0,
                       clipped=True, include_colorbar=True, include_interpolation=True):
     '''Draw an interpolated dataset using the given tensor and samples.'''
     g = tensor.apply(samples, clipped=clipped)
     return drawGrid(g, tensor._xs, tensor._ys,
-                    ax=ax, cmap=cmap, cmap_title=cmap_title, norm=norm, fontsize=fontsize,
+                    ax=ax, cmap=cmap, norm=norm, format=format, shrink=shrink,
                     include_colorbar=include_colorbar, include_interpolation=include_interpolation)

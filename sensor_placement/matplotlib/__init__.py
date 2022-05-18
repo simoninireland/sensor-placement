@@ -20,7 +20,7 @@
 from .tiles import tile
 
 # Samples
-from .samples import drawSamples, drawVoronoiCells, drawSampleLabels
+from .samples import drawRawSamples, drawVoronoiCells, drawSampleLabels
 
 # Interpolation
 from .interpolation import drawGrid, drawInterpolation
