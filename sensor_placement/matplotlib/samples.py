@@ -27,7 +27,7 @@ from matplotlib.colors import Normalize
 
 
 def drawRawSamples(tensor, samples,
-                   ax=None, cmap=None, norm=None, fontsize=None, marker='o', markersize=None,
+                   ax=None, cmap=None, norm=None, fontsize=None, marker='o', markersize=None, shrink=1.0,
                    include_sample_labels=True, include_colorbar=True):
     '''Draw raw samples coloured by the given colourmap.'''
 
@@ -43,8 +43,6 @@ def drawRawSamples(tensor, samples,
     for i in range(len(tensor._samples)):
         p = tensor._samples.geometry.iloc[i]
         pt = list(p.coords)[0]
-        ax.set_xlim([0.0, 1.0])
-        ax.set_ylim([0.0, 1.0])
         ax.plot(pt[0], pt[1], marker=marker, markersize=markersize, color=cmap(norm(samples[i])))
         if include_sample_labels:
             ax.annotate(f'{i}', (pt[0], pt[1]),
@@ -53,9 +51,8 @@ def drawRawSamples(tensor, samples,
 
     # add colorbar
     if include_colorbar:
-        cbar = plt.colorbar(mappable=mp,
-                            ax=ax, cmap=cmap, norm=norm, format=format,
-                            fraction=0.1, shrink=0.55)
+        cbar = plt.colorbar(ax=ax, cmap=cmap, norm=norm, format=format,
+                            fraction=0.1, shrink=shrink)
 
         # ticks at the extrema, and at 0 if there's a change of sign
         if norm.vmin * norm.vmax < 0:

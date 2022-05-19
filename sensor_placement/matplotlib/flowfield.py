@@ -83,7 +83,7 @@ def drawVector(p, q, w,
     (dx, dy) = makeVector(p, q, w * radius)
 
     # draw it
-    drawVectorOffset(p, dx, dy, ax=ax, radius=radius, color=color)
+    drawVectorOffset(p, dx, dy, ax=ax, color=color)
 
 
 
