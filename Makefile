@@ -58,6 +58,14 @@ SCRIPTS = \
 	$(UTILS)/ceda-monthly.py \
 	$(UTILS)/epa-daily.py
 
+# Video scenes
+VIDEO = \
+	video/NNNI.mp4 \
+	video/Tensor.mp4
+
+# Video quality, should be l or h
+VIDEO_QUALITY = l
+
 
 # ----- Data -----
 
@@ -107,14 +115,8 @@ ROOT = $(shell pwd)
 PYTHON = python3.7
 IPYTHON = ipython
 JUPYTER = jupyter
-JUPYTER_BOOK = jupyter-book
-LATEX = pdflatex
-BIBTEX = bibtex
-MAKEINDEX = makeindex
-SPHINX = sphinx-build
-GHP_IMPORT = ghp-import
-GHOSTSCRIPT = gs
 PIP = pip
+MANIM = manim
 VIRTUALENV = $(PYTHON) -m venv
 ACTIVATE = . $(VENV)/bin/activate && . $(CREDENTIALS)
 RSYNC = rsync
@@ -143,11 +145,10 @@ KNOWN_GOOD_REQUIREMENTS = known-good-requirements.txt
 # pyproj data
 PYPROJ_DATA_DIR = `python -c "import pyproj; print(pyproj.datadir.get_data_dir())"`
 
-# Jupyter Book construction
-BUILD_DIR = _build
-SRC_DIR = src
-BOOK_DIR = bookdir
-BOOK_BUILD_DIR = $(BOOK_DIR)/$(BUILD_DIR)
+# Video construction
+TEMP_MEDIA = media
+ASSETS_DIR = assets
+VIDEO_RESOLUTION = $(shell if [ "$(VIDEO_QUALITY)" == "l" ]; then echo "480p15"; else echo "1080p60"; fi)
 
 # Commands
 RUN_SERVER = PYTHONPATH=. $(JUPYTER) notebook
@@ -203,15 +204,22 @@ live: env
 test: env Makefile
 	$(ACTIVATE) && $(RUN_TESTS)
 
+# Build video scenes
+.PHONY: video
+video: $(VIDEO)
+
 # Build a development venv
 .PHONY: env
-env: $(VENV) $(DIAGRAMS_DIR) $(DATASETS_DIR)
+env: $(VENV) $(DIAGRAMS_DIR) $(DATASETS_DIR) $(ASSETS_DIR)
 
 $(VENV):
 	$(VIRTUALENV) $(VENV)
 	$(ACTIVATE) && $(PIP) install -U pip wheel
 	$(ACTIVATE) && $(PIP) install -r $(REQUIREMENTS)
 	$(ACTIVATE) && $(PIP) install -r $(DEV_REQUIREMENTS)
+
+$(ASSETS_DIR):
+	$(MKDIR) $(ASSETS_DIR)
 
 $(DATASETS_DIR):
 	$(MKDIR) $(DATASETS_DIR)
@@ -221,12 +229,23 @@ $(DIAGRAMS_DIR):
 
 # Clean up the build
 clean:
-	$(RM) $(DIAGRAMS_DIR)/*
+	$(RM) $(DIAGRAMS_DIR)/* $(VIDEO) $(TEMP_MEDIA) $(ASSETS)
 
 # Clean up everything, including the venv and the datasets (which are *very* expensive
 # to re-download)
 reallyclean: clean
 	$(RM) $(VENV) $(DATASETS_DIR) $(DIAGRAMS_DIR) $(CEDA_CA) $(CEDA_CA_ROOTS) $(CEDA_CERTIFICATE)
+
+
+# ----- Implicit rules -----
+.SUFFIXES: .py .mp4
+
+.py.mp4:
+	$(ACTIVATE) && $(MANIM) --save_sections -q$(VIDEO_QUALITY) $<
+	$(CP) $(TEMP_MEDIA)/videos/$(shell basename $< .py)/$(VIDEO_RESOLUTION)/$(shell basename $< .py).mp4 $(shell dirname $<)
+	$(CP) $(TEMP_MEDIA)/videos/$(shell basename $< .py)/$(VIDEO_RESOLUTION)/$(shell basename $< .py).mp4 $(ASSETS_DIR)
+	$(CP) $(TEMP_MEDIA)/videos/$(shell basename $< .py)/$(VIDEO_RESOLUTION)/sections/$(shell basename $< .py)_[0-9]*.mp4 $(ASSETS_DIR)
+	$(CP) $(TEMP_MEDIA)/videos/$(shell basename $< .py)/$(VIDEO_RESOLUTION)/sections/$(shell basename $< .py).json $(ASSETS_DIR)
 
 
 # ----- Usage -----
@@ -239,6 +258,7 @@ Maintenance:
    make env          create a virtual environment
    make datasets     download all the datasets (long!)
    make test         run the unit test suite
+   make video        build all the video scenes
    make clean        clean-up the build (mainly the diagrams)
    make reallyclean  delete the venv and all the datasets as well
 
