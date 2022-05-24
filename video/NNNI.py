@@ -18,8 +18,6 @@
 # You should have received a copy of the GNU General Public License
 # along with this software. If not, see <http://www.gnu.org/licenses/gpl.html>.
 
-# See https://help.ceda.ac.uk/article/4442-ceda-opendap-scripted-interactions
-
 import numpy
 from manim import *
 from shapely.geometry import (Point as shapely_Point,
@@ -43,7 +41,7 @@ class NNNI(Scene):
                shapely_Point(0.45, 0.75),
                shapely_Point(0.75, 0.35)]
     SAMPLE_VALUES = [25, 16, 7]                           # sample values at these points
-    SYNTHETIC = shapely_Point(0.5, 0.2)                   # synthetic point
+    SYNTHETIC = shapely_Point(0.55, 0.25)                 # synthetic point
 
     def __init__(self, **kwargs):
         super().__init__(**kwargs)
@@ -143,7 +141,7 @@ class NNNI(Scene):
 
             # length annotation
             length = NNNI.distance(p, q)
-            t = DecimalNumber(length, num_decimal_places=2, font_size=32).move_to(q).shift(DOWN * 0.35 + RIGHT * 0.55)
+            t = DecimalNumber(length, num_decimal_places=2, font_size=32, color=GREEN).move_to(q).shift(DOWN * 0.35 + RIGHT * 0.55)
             lines.append(t)
             lengths.append(length)
         distances = VGroup(*lines)
