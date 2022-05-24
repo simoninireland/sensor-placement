@@ -107,3 +107,7 @@ ENV/
 *~
 \#*\#
 TAGS
+
+# Video files and assets
+assets/
+media/
