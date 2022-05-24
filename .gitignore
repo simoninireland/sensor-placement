@@ -109,5 +109,6 @@ ENV/
 TAGS
 
 # Video files and assets
+video/*mp4
 assets/
 media/
