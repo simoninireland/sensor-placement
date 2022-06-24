@@ -70,8 +70,8 @@ VIDEO_QUALITY = l
 # ----- Data -----
 
 # Data files and directories
-DATASETS_DIR = datasets
-DIAGRAMS_DIR = diagrams
+DATASETS_DIR = ./datasets/
+DIAGRAMS_DIR = ./diagrams/
 CREDENTIALS = ./credentials
 
 # CEH-GEAR monthly
